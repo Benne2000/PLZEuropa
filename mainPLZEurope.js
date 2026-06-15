@@ -39,6 +39,7 @@
   const DEFAULT_LAND  = 'DE';
   const GEO_BASE_URL  = 'https://benne2000.github.io/PLZEuropa/';
   const LAND_NAMES    = { DE: 'Deutschland', NL: 'Niederlande', CH: 'Schweiz' };
+  const BORDERS_URL   = GEO_BASE_URL + 'borders.geojson';
 
   const NULL_TOKENS   = new Set(['', '@NullMember', '@TotalMembers']);
   const CATEGORIES    = ['stationaer', 'pluscard', 'ra', 'online'];
@@ -2236,6 +2237,7 @@
       this._erhebungLand         = {};      // erhID → Land (DE/NL/CH) der NLs
       this._borderGroup          = null;    // LayerGroup der Länder-Außengrenzen
       this._borderByLand         = new Set();
+      this._bordersPromise       = null;    // gecachte borders.geojson
 
       // Map-Objekte
       this.map              = null;
@@ -2615,6 +2617,7 @@
       this._geoJsonPromiseByLand?.clear();
       this._borderByLand?.clear();
       this._borderGroup = null;
+      this._bordersPromise = null;
       this._erhebungLand = {};
       this._labelByPLZ = {};
       this.criticalMarkers = {};
@@ -3244,6 +3247,34 @@
     _drawCountryBorder(land, geoData) {
       if (!this.map || this._borderByLand.has(land)) return;
       this._borderByLand.add(land);
+      this._ensureBordersData().then(coll => {
+        if (!this.isConnected || !this.map) return;
+        const feat = coll && Array.isArray(coll.features)
+          ? coll.features.find(f => f && f.properties && f.properties.land === land)
+          : null;
+        if (!feat) { this._drawCountryBorderFallback(land, geoData); return; }
+        if (!this._borderGroup) this._borderGroup = L.layerGroup().addTo(this.map);
+        const lyr = L.geoJSON(feat, {
+          renderer: this._canvasRenderer,
+          interactive: false,
+          style: { fill: false, color: '#3a4049', weight: 1.6, opacity: 0.7, lineJoin: 'round' },
+        });
+        this._borderGroup.addLayer(lyr);
+      }).catch(e => console.warn('[PLZ-Widget] Ländergrenze ' + land + ':', e));
+    }
+
+    _ensureBordersData() {
+      if (!this._bordersPromise) {
+        this._bordersPromise = fetch(BORDERS_URL, { cache: 'force-cache' })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null);
+      }
+      return this._bordersPromise;
+    }
+
+    // Fallback: Außenkontur aus den geladenen PLZ-Polygonen ableiten
+    // (sauber nur bei topologisch geteilten PLZ, z. B. DE).
+    _drawCountryBorderFallback(land, geoData) {
       requestAnimationFrame(() => {
         if (!this.isConnected || !this.map) return;
         try {
@@ -3257,7 +3288,7 @@
           });
           this._borderGroup.addLayer(line);
         } catch (e) {
-          console.warn('[PLZ-Widget] Ländergrenze ' + land + ':', e);
+          console.warn('[PLZ-Widget] Ländergrenze (Fallback) ' + land + ':', e);
         }
       });
     }
