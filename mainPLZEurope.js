@@ -38,6 +38,7 @@
   const COUNTRY_CODES = Object.keys(COUNTRY_CONFIG);
   const DEFAULT_LAND  = 'DE';
   const GEO_BASE_URL  = 'https://benne2000.github.io/PLZEuropa/';
+  const LAND_NAMES    = { DE: 'Deutschland', NL: 'Niederlande', CH: 'Schweiz' };
 
   const NULL_TOKENS   = new Set(['', '@NullMember', '@TotalMembers']);
   const CATEGORIES    = ['stationaer', 'pluscard', 'ra', 'online'];
@@ -2232,6 +2233,9 @@
       this._geoLayerByLand       = new Map();
       this._geoJsonPromiseByLand = new Map();
       this._clickBoundByLand     = new Set();
+      this._erhebungLand         = {};      // erhID → Land (DE/NL/CH) der NLs
+      this._borderGroup          = null;    // LayerGroup der Länder-Außengrenzen
+      this._borderByLand         = new Set();
 
       // Map-Objekte
       this.map              = null;
@@ -2609,6 +2613,9 @@
       this._loadedLands?.clear();
       this._geoLayerByLand?.clear();
       this._geoJsonPromiseByLand?.clear();
+      this._borderByLand?.clear();
+      this._borderGroup = null;
+      this._erhebungLand = {};
       this._labelByPLZ = {};
       this.criticalMarkers = {};
       this.iconCache = {};
@@ -2693,7 +2700,13 @@
     }
 
     // Einheitliche GF-Bereich-Formatierung
-    _fmtGF(id) { return id ? `GF-Bereich ${id}` : id; }
+    _fmtGF(id) {
+      if (!id) return id;
+      const land = this._erhebungLand?.[id] || DEFAULT_LAND;
+      const prefix = land === 'DE' ? 'GF-Bereich' : 'ErhebungsID';
+      const name = LAND_NAMES[land];
+      return `${prefix} ${id}${name ? ' (' + name + ')' : ''}`;
+    }
 
     // ── Länder-Helfer (Europäisierung) ─────────────────────────────────
     // Composite-Key aus Land + PLZ — eindeutig über Grenzen hinweg.
@@ -2770,6 +2783,7 @@
         const yr  = row['dimension_jahr_0']?.id?.trim();
         const nr  = row['dimension_erhebungsnummer_0']?.id?.trim();
         if (isNull(eID) || isNull(yr) || isNull(nr)) continue;
+        if (this._erhebungLand[eID] === undefined) this._erhebungLand[eID] = this._landOfRow(row);
         // Fremd-Erhebung (= nicht in der aktiven Liste): nur HZ=X Rows speichern
         if (hasActiveFilter && !activeSet.has(eID)) {
           if (row['dimension_hzflag_0']?.id?.trim() !== 'X') continue;
@@ -3120,6 +3134,7 @@
         const yr  = row['dimension_jahr_0']?.id?.trim();
         const nr  = row['dimension_erhebungsnummer_0']?.id?.trim();
         if (isNull(eID) || isNull(yr) || isNull(nr)) continue;
+        if (this._erhebungLand[eID] === undefined) this._erhebungLand[eID] = this._landOfRow(row);
         const k = eID + '|' + yr + '|' + nr;
         (idx[k] ||= []).push(row);
       }
@@ -3216,10 +3231,68 @@
 
         this._bindGeoLayerClicks(land);
         this._bindLabelUpdates();
+        this._drawCountryBorder(land, geoData);
         this._distanceCacheNLKey = null;   // neue Polygone → Distanz-Cache neu
       } catch (err) {
         console.error(`[PLZ-Widget] GeoJSON ${land}:`, err);
       }
+    }
+
+    // ── Ländergrenzen (aus geladenen PLZ-Polygonen abgeleitet) ─────────
+    // Außenkontur = Kanten, die nur in EINEM Polygon vorkommen (geteilte
+    // PLZ-Kanten kommen 2×). Dependency-frei, keine Extra-Datei. Deferred.
+    _drawCountryBorder(land, geoData) {
+      if (!this.map || this._borderByLand.has(land)) return;
+      this._borderByLand.add(land);
+      requestAnimationFrame(() => {
+        if (!this.isConnected || !this.map) return;
+        try {
+          const segs = this._extractBoundarySegments(geoData);
+          if (!segs.length) return;
+          if (!this._borderGroup) this._borderGroup = L.layerGroup().addTo(this.map);
+          const line = L.polyline(segs, {
+            renderer: this._canvasRenderer,
+            color: '#3a4049', weight: 1.6, opacity: 0.7,
+            fill: false, interactive: false, lineJoin: 'round',
+          });
+          this._borderGroup.addLayer(line);
+        } catch (e) {
+          console.warn('[PLZ-Widget] Ländergrenze ' + land + ':', e);
+        }
+      });
+    }
+
+    // Sammelt alle Außenkanten-Segmente einer FeatureCollection als
+    // [[lat,lng],[lat,lng]]-Liste (für eine Multi-Polyline).
+    _extractBoundarySegments(geoData) {
+      const edgeCount = new Map();
+      const edgeSeg   = new Map();
+      const R = 1e5;   // ~1 m Rundung, damit geteilte Kanten exakt matchen
+      const keyPt = (x, y) => (Math.round(x * R) / R) + ',' + (Math.round(y * R) / R);
+      const addEdge = (a, b) => {
+        const ka = keyPt(a[0], a[1]);
+        const kb = keyPt(b[0], b[1]);
+        if (ka === kb) return;
+        const k = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+        edgeCount.set(k, (edgeCount.get(k) || 0) + 1);
+        if (!edgeSeg.has(k)) edgeSeg.set(k, [[a[1], a[0]], [b[1], b[0]]]);
+      };
+      const ring = (coords) => {
+        for (let i = 0; i + 1 < coords.length; i++) addEdge(coords[i], coords[i + 1]);
+      };
+      const poly = (rings) => { for (let i = 0; i < rings.length; i++) ring(rings[i]); };
+      const feats = geoData.features || [];
+      for (let i = 0; i < feats.length; i++) {
+        const g = feats[i] && feats[i].geometry;
+        if (!g) continue;
+        if (g.type === 'Polygon') poly(g.coordinates);
+        else if (g.type === 'MultiPolygon') {
+          for (let j = 0; j < g.coordinates.length; j++) poly(g.coordinates[j]);
+        }
+      }
+      const segs = [];
+      for (const [k, c] of edgeCount) if (c === 1) segs.push(edgeSeg.get(k));
+      return segs;
     }
 
     // Ein einziger Click-Handler pro Layer (statt pro updateGeoLayer neu gebunden)
