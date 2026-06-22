@@ -2332,10 +2332,10 @@
       // Setup (in _wireControlPanel) gelaufen ist.
       this._setupSidebarHandlers();
 
-      // GeoJSON + Competitor-Daten parallel vorladen
-      // Phase-1: nur DE vorladen. NL/CH werden lazy via loadGeoJson(land)
-      // nachgeladen, sobald Daten dieses Landes auftauchen.
-      this._prefetchGeoJson(DEFAULT_LAND);
+      // Borders-First: am Start nur die schlanke borders.geojson vorladen.
+      // Die schweren PLZ-GeoJSONs kommen erst bei Erhebungs-Auswahl
+      // (loadGeoJson(land) via _ensureLandsForData).
+      this._ensureBordersData();
 
       // Eingebettete Fallback-Daten — werden genutzt wenn der Fetch fehlschlägt
       const COMPETITOR_FALLBACK = [
@@ -2743,6 +2743,8 @@
       for (const land of lands) {
         if (!this._loadedLands.has(land)) await this.loadGeoJson(land);
       }
+      // Speicher: PLZ-GeoJSONs nicht mehr benötigter Länder freigeben.
+      this._unloadUnusedLands(lands);
     }
 
 
@@ -3158,7 +3160,6 @@
         this.nlKoordinaten[nl] = { lat, lon };
       }
 
-      this.loadGeoJson();
       this._startPreviewAnimation();
       this._hideCinematicLoader();
 
@@ -3324,6 +3325,74 @@
       const segs = [];
       for (const [k, c] of edgeCount) if (c === 1) segs.push(edgeSeg.get(k));
       return segs;
+    }
+
+    // ── Borders-First: alle Landesgrenzen zeichnen + Europa-Fit ─────────
+    _showAllBorders() {
+      if (!this.map) return;
+      this._ensureBordersData().then(coll => {
+        if (!this.isConnected || !this.map) return;
+        if (!coll || !Array.isArray(coll.features)) {
+          // Kein borders.geojson → Fallback: DE-Flächen als Backdrop
+          if (this._loadedLands.size === 0) this.loadGeoJson(DEFAULT_LAND);
+          return;
+        }
+        if (!this._borderGroup) this._borderGroup = L.layerGroup().addTo(this.map);
+        for (const feat of coll.features) {
+          const land = feat && feat.properties && feat.properties.land;
+          if (!land || this._borderByLand.has(land)) continue;
+          this._borderByLand.add(land);
+          const lyr = L.geoJSON(feat, {
+            renderer: this._canvasRenderer, interactive: false,
+            style: { fill: false, color: '#3a4049', weight: 1.6, opacity: 0.7, lineJoin: 'round' },
+          });
+          this._borderGroup.addLayer(lyr);
+        }
+        // Nur im Hauptmenü auf Europa zoomen (nicht über eine aktive Erhebung)
+        if (!this._activeFilter) {
+          try {
+            const b = this._borderGroup.getBounds();
+            if (b && b.isValid()) this.map.fitBounds(b, { padding: [20, 20] });
+          } catch (e) { /* swallow */ }
+        }
+      }).catch(() => {});
+    }
+
+    // PLZ-GeoJSON eines Landes aus Karte + Caches entfernen (Speicher).
+    _unloadLand(land) {
+      if (!this._loadedLands.has(land)) return;
+      const layer = this._geoLayerByLand.get(land);
+      if (layer && this.map) { try { this.map.removeLayer(layer); } catch (e) {} }
+      this._geoLayerByLand.delete(land);
+      this._loadedLands.delete(land);
+      this._clickBoundByLand.delete(land);
+      if (this._geoLayer === layer) this._geoLayer = null;
+      const pre = land + ':';
+      if (this._layerByPLZ) {
+        for (const k of Object.keys(this._layerByPLZ)) if (k.startsWith(pre)) delete this._layerByPLZ[k];
+      }
+      if (this._plzCenterCache) {
+        for (const k of Object.keys(this._plzCenterCache)) if (k.startsWith(pre)) delete this._plzCenterCache[k];
+      }
+      if (this._labelByPLZ) {
+        for (const k of Object.keys(this._labelByPLZ)) {
+          if (k.startsWith(pre)) {
+            try { this._labelLayer && this._labelLayer.removeLayer(this._labelByPLZ[k]); } catch (e) {}
+            delete this._labelByPLZ[k];
+          }
+        }
+      }
+      this._distanceCacheNLKey = null;   // Distanz-Cache invalidieren
+    }
+
+    // Alle geladenen Länder freigeben, die nicht in neededLands sind.
+    _unloadUnusedLands(neededLands) {
+      for (const land of [...this._loadedLands]) {
+        if (!neededLands.has(land)) this._unloadLand(land);
+      }
+      if (!this._geoLayer && this._geoLayerByLand.size) {
+        this._geoLayer = this._geoLayerByLand.values().next().value;
+      }
     }
 
     // Ein einziger Click-Handler pro Layer (statt pro updateGeoLayer neu gebunden)
@@ -3947,6 +4016,7 @@
       this.radiusGroup     = L.layerGroup().addTo(this.map);
       this.bestreuungGroup = L.layerGroup().addTo(this.map);
       this.competitorGroup = L.layerGroup().addTo(this.map);
+      this._showAllBorders();
 
       // Daten-Ready?
       // ACHTUNG: render()-Aufrufe MÜSSEN über _renderInProgress geschützt werden,
@@ -7080,7 +7150,6 @@
             this._updateLoaderPhase(1, 'Erhebungsdaten werden geladen…');
             const [rawData] = await Promise.all([
               this.queryErhebungFromBW(erhID, jahr, nummer),
-              this.loadGeoJson(DEFAULT_LAND),
             ]);
             this.filteredData = rawData;
             await this._ensureLandsForData(rawData);
@@ -7204,7 +7273,6 @@
         progress(2, 25, 'Karte wird vorbereitet…', filteredData.length);
         await yieldFrame();
         if (isStale()) { console.info('[PLZ-Widget] render() abgebrochen (stale)'); console.groupEnd(); return; }
-        await this.loadGeoJson(DEFAULT_LAND);
         await this._ensureLandsForData(filteredData);
         this.prepareMapData(filteredData);
 
@@ -7948,6 +8016,9 @@
       const box = this.$('streuverlust-box');
       if (box) box.innerHTML = '';
       this.map?.setView([51.2, 12.5], 6);
+      // Borders-First: PLZ-GeoJSONs freigeben, nur Grenzen + Europa zeigen.
+      this._unloadUnusedLands(new Set());
+      this._showAllBorders();
       this.$('map-interaction-block')?.classList.remove('hidden');
 
       // Filter zurücksetzen
