@@ -35,11 +35,13 @@
     NL: { file: 'PLZ_NL.geojson', plzLen: 4, center: [52.1,  5.3], zoom: 7 },
     CH: { file: 'PLZ_CH.geojson', plzLen: 4, center: [46.8,  8.2], zoom: 7 },
     AT: { file: 'PLZ_AT.geojson', plzLen: 4, center: [47.6, 14.1], zoom: 7 },
+    CZ: { file: 'PLZ_CZ.geojson', plzLen: 5, center: [49.8, 15.5], zoom: 7 },
+    ES: { file: 'PLZ_ES.geojson', plzLen: 5, center: [40.0, -3.7], zoom: 6 },
   };
   const COUNTRY_CODES = Object.keys(COUNTRY_CONFIG);
   const DEFAULT_LAND  = 'DE';
   const GEO_BASE_URL  = 'https://benne2000.github.io/PLZEuropa/';
-  const LAND_NAMES    = { DE: 'Deutschland', NL: 'Niederlande', CH: 'Schweiz', AT: 'Österreich' };
+  const LAND_NAMES    = { DE: 'Deutschland', NL: 'Niederlande', CH: 'Schweiz', AT: 'Österreich', CZ: 'Tschechien', ES: 'Spanien' };
   const BORDERS_URL   = GEO_BASE_URL + 'borders.geojson';
 
   const NULL_TOKENS   = new Set(['', '@NullMember', '@TotalMembers']);
