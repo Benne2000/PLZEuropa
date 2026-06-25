@@ -3256,7 +3256,14 @@
         const feat = coll && Array.isArray(coll.features)
           ? coll.features.find(f => f && f.properties && f.properties.land === land)
           : null;
-        if (!feat) { this._drawCountryBorderFallback(land, geoData); return; }
+        if (!feat) {
+          // borders.geojson kennt dieses Land (noch) nicht.
+          // Abgeleitete Kontur nur für DE (geteilte Topologie); bei anderen
+          // Ländern gäbe es wilde PLZ-Innenkanten → überspringen.
+          if (land === DEFAULT_LAND) this._drawCountryBorderFallback(land, geoData);
+          else console.warn('[PLZ-Widget] borders.geojson ohne Feature für ' + land + ' (Datei aktualisieren).');
+          return;
+        }
         if (!this._borderGroup) this._borderGroup = L.layerGroup().addTo(this.map);
         const lyr = L.geoJSON(feat, {
           renderer: this._canvasRenderer,
@@ -3269,7 +3276,7 @@
 
     _ensureBordersData() {
       if (!this._bordersPromise) {
-        this._bordersPromise = fetch(BORDERS_URL, { cache: 'force-cache' })
+        this._bordersPromise = fetch(BORDERS_URL, { cache: 'no-cache' })
           .then(r => r.ok ? r.json() : null)
           .catch(() => null);
       }
