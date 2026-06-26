@@ -2731,7 +2731,7 @@
       if (this._geoJsonPromiseByLand.has(land)) return this._geoJsonPromiseByLand.get(land);
       const cfg = COUNTRY_CONFIG[land];
       if (!cfg) return Promise.resolve(null);
-      const p = fetch(GEO_BASE_URL + cfg.file, { cache: 'force-cache' })
+      const p = fetch(GEO_BASE_URL + cfg.file, { cache: 'no-cache' })
         .then(r => r.json())
         .catch(err => { console.error(`[PLZ-Widget] GeoJSON prefetch ${land}:`, err); return null; });
       this._geoJsonPromiseByLand.set(land, p);
