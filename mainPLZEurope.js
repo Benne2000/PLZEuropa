@@ -46,8 +46,49 @@
 
   const NULL_TOKENS   = new Set(['', '@NullMember', '@TotalMembers']);
   const CATEGORIES    = ['stationaer', 'pluscard', 'ra', 'online'];
+
+  // ── Umsatzherkunft (PLZ_QUELLE) → interne Kategorie ──────────────────
+  // Datenmodell-Umstellung: die 4 Kategorien sind KEINE eigenen Kennzahl-
+  // Spalten mehr, sondern Ausprägungen des Merkmals PLZ_QUELLE (eine Zeile je
+  // Herkunft). Die internen Keys (stationaer/pluscard/ra/online) bleiben, damit
+  // UI, Toggles, Popups und getUmsatzSumForPLZ unverändert weiterlaufen.
+  // Mapping tolerant (Groß/Klein, Trennzeichen egal). NICHT final bestätigt für
+  // CNC_BOR (→ra, Click'n'Collect ≈ Reserve&Abholen) und ERHEBUNG (→stationaer,
+  // per Ausschluss) — bei Bedarf hier EINE Zeile anpassen.
+  const UMSATZ_QUELLE_MAP = {
+    'PLUSCARDBP': 'pluscard',
+    'KUBE_OS':    'online',
+    'KUBEOS':     'online',
+    'CNC_BOR':    'ra',
+    'CNCBOR':     'ra',
+    'ERHEBUNG':   'stationaer',
+  };
+  // Normalisiert einen PLZ_QUELLE-Rohwert auf eine interne Kategorie oder null.
+  const mapUmsatzQuelle = (raw) => {
+    if (raw == null) return null;
+    const key = String(raw).trim().toUpperCase().replace(/[\s.\-/]+/g, '_');
+    return UMSATZ_QUELLE_MAP[key] || UMSATZ_QUELLE_MAP[key.replace(/_/g, '')] || null;
+  };
+
+  // Basis der interaktiven Umsatz-Anzeige (Heatmap + Popup "Nach Kategorien").
+  // 'hochgerechnet' → BUMSNHOCH/BPROHOCH/BPROZUSH (konsistent mit WK%-Nenner und
+  // Tabellenspalte "Umsatz (Hochger.)"). Auf 'ist' umstellbar (BUMISTB/BUMPROB/
+  // BUMPROBZ) — dann liefert getUmsatzSumForPLZ die Ist-Werte. Ø-Bon nutzt IMMER
+  // Ist (BUMISTB), unabhängig von dieser Konstante.
+  const UMSATZ_DISPLAY_BASIS = 'hochgerechnet';
+
+  // ── Währung (LOC_CURRCY ist führend) ─────────────────────────────────
+  // Symbol je ISO-Währungscode. Fallback: der Code selbst bzw. '€'.
+  const CURRENCY_SYMBOLS = { EUR: '€', CHF: 'CHF', CZK: 'Kč', GBP: '£', USD: '$', PLN: 'zł', DKK: 'kr', SEK: 'kr', NOK: 'kr', HUF: 'Ft' };
+  const currencySymbol = (code) => {
+    if (!code) return '€';
+    const c = String(code).trim().toUpperCase();
+    return CURRENCY_SYMBOLS[c] || c || '€';
+  };
+
   const PLZ_FILTER_KEYS    = ['0POSTALCODE', 'dimension_plz_0', 'dimension_plz'];
-  const ERH_FILTER_KEYS    = ['BGFBNR', 'dimension_erhebung_0', 'dimension_erhebung'];
+  // BERHEBEHT löst BGFBNR ab (kann ein Land ODER — nur in DE — ein GF-Bereich sein).
+  const ERH_FILTER_KEYS    = ['BERHEBEHT', 'dimension_erhebung_0', 'dimension_erhebung'];
   const JAHR_FILTER_KEYS   = ['0CALYEAR', 'dimension_jahr_0', 'dimension_jahr'];
   const NUMMER_FILTER_KEYS = ['BERHBNUM', 'dimension_erhebungsnummer_0', 'dimension_erhebungsnummer'];
   const ALL_STALE_KEYS = [...ERH_FILTER_KEYS, ...JAHR_FILTER_KEYS, ...NUMMER_FILTER_KEYS];
@@ -74,6 +115,20 @@
 
   const fmtNum = (x) => Math.round(Number(x || 0)).toLocaleString('de-DE');
   const fmtDec = (x) => Number(x || 0).toFixed(2);
+
+  // ── Karten-Markierung (Highlight einer angeklickten/gewählten PLZ) ────
+  // Schwarze Linie mit weißem Halo (zweiter, darunterliegender Layer).
+  // Bewusst als const in der IIFE (NICHT als static get) — letzteres
+  // erzeugte in diesem Setup einen Ladefehler des Custom Elements.
+  const HIGHLIGHT_STROKE = '#111111';   // Farbe der eigentlichen PLZ-Kante
+  const HIGHLIGHT_WEIGHT = 3;           // Stärke der schwarzen Linie
+  const HIGHLIGHT_HALO   = '#FFFFFF';   // Halo-Farbe (weiß)
+  const HIGHLIGHT_HALO_W = 7;           // Halo-Linienstärke (breiter als Stroke)
+
+  // ── Ø-Bon (Kennzahl im Umsatz-Modus) ─────────────────────────────────
+  // Mindestanzahl Bons, ab der ein Ø-Bon als valide gilt. Darunter ist die
+  // Stichprobe zu klein und der Wert zu volatil → grau eingefärbt.
+  const BON_MIN_KD = 5;
 
   /**
    * Formatiert einen 15-stelligen Erhebungsnummer-Char aus BW.
@@ -271,6 +326,25 @@
         display: flex; justify-content: space-between; align-items: center; gap: 8px;
       }
       #streuverlust-box strong { color: var(--red); }
+
+      /* ─── CSV-Export-Leiste über der PLZ-Tabelle ─────────────────────── */
+      .table-export-bar {
+        flex-shrink: 0; display: flex; justify-content: space-between;
+        align-items: center; gap: 8px; padding: 6px 10px;
+        background: var(--gray-100); border-bottom: 1px solid var(--gray-200);
+        font-size: 0.74rem; color: var(--gray-600); font-weight: 600;
+      }
+      .table-export-bar .row-count { letter-spacing: 0.02em; }
+      .table-export-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 11px; border: 1px solid var(--red);
+        border-radius: var(--radius-md); background: var(--white);
+        color: var(--red); font-size: 0.74rem; font-weight: 700;
+        font-family: var(--font); cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .table-export-btn:hover { background: var(--red); color: var(--white); }
+      .table-export-btn:active { transform: translateY(1px); }
 
       /* ─── Sidebar-Layout (Phase 2) ─────────────────────────────────── */
       /* Layout-Konzept:
@@ -2181,6 +2255,12 @@
           <label class="big-check"><input type="checkbox" id="chk-werbeumsatz" checked> Werbeumsatz</label>
           <label class="big-check"><input type="checkbox" id="chk-mitgekauft"> Mitgekauft</label>
         </div>
+        <div class="switch-label">Kennzahl</div>
+        <div id="umsatz-kennzahl-switch" class="triple-switch">
+          <span class="mode-umsatz active" data-kennzahl="umsatz">Umsatz</span>
+          <span class="mode-bon" data-kennzahl="bon">Ø-Bon</span>
+          <span class="mode-kunden" data-kennzahl="kunden">Kunden</span>
+        </div>
         <div class="switch-label">Darstellung</div>
         <div id="umsatz-analysis-switch" class="triple-switch">
           <span class="mode-abs active">Absolut</span>
@@ -2262,6 +2342,11 @@
       this.activeCategories      = new Set(CATEGORIES);
       this.umsatzMainMode        = 'gesamt';
       this.umsatzDarstellung     = 'abs';
+      // Kennzahl im Umsatz-Modus: 'umsatz' (Standard) | 'bon' (Ø-Bon) | 'kunden'.
+      // Bewusst KEIN eigener currentMapMode — ein zusätzlicher Mode hätte alle
+      // === 'umsatz-multi'-Abfragen (Radiusfilter, Tabelle, Popups, Streuverlust)
+      // umgangen und den Umsatzmodus faktisch abgeschaltet.
+      this.umsatzKennzahl        = 'umsatz';
       this.useWerbeUmsatz        = true;
       this.useZusatzUmsatz       = false;
       this.useRadiusFilter       = true;
@@ -2277,6 +2362,9 @@
       this._highlightedPLZ       = null;
       this._lastHighlightedRow   = null;
       this._lastHighlightedLayer = null;
+      this._haloLayer            = null;   // weißer Halo-Layer unter dem Highlight
+      this._bonRefCache          = 0;      // gewichteter Referenz-Ø-Bon (Index 100)
+      this._displayCurrency      = 'EUR';  // führende Anzeige-Währung (LOC_CURRCY)
       this.filteredData          = null;
       this.filteredKennwerte     = {};
       this.filteredPLZWerte      = {};
@@ -2488,7 +2576,7 @@
       ];
 
       const applyCompetitorData = (raw, source) => {
-        const brandAlias = { HOR: 'Hornbach', OBI: 'OBI', GLO: 'Globus', HEL: 'Hellweg', TOO: 'Toom', HAG: 'Hagebau' };
+        const brandAlias = { HOR: 'Hornbach', OBI: 'OBI', GLO: 'Globus', HEL: 'Hellweg', TOO: 'Toom', HAG: 'Hagebau', H2B: 'H2B' };
         let entries;
         if (Array.isArray(raw)) {
           entries = raw;
@@ -2718,10 +2806,13 @@
     // Composite-Key aus Land + PLZ — eindeutig über Grenzen hinweg.
     _plzKey(land, plz) { return (land || DEFAULT_LAND) + ':' + plz; }
 
-    // Land einer BW-Row. Fallback DEFAULT_LAND solange dimension_land fehlt.
+    // Land einer BW-Row — abgeleitet aus BERHEBEHT (Land oder GF-Bereich).
     _landOfRow(row) {
-      const land = row?.['dimension_land_0']?.id?.trim();
-      return (land && COUNTRY_CONFIG[land]) ? land : DEFAULT_LAND;
+      // BERHEBEHT ist entweder ein Ländercode (DE/NL/CH/AT/CZ/ES) oder ein
+      // GF-Bereich (nur in DE). Ist der Wert ein bekanntes Land → dieses Land,
+      // sonst (GF-Bereich) → Default DE.
+      const erh = row?.['dimension_erhebung_0']?.id?.trim();
+      return (erh && COUNTRY_CONFIG[erh]) ? erh : DEFAULT_LAND;
     }
 
     // Aggregat-/Stammdaten-PLZ (00000 / 0000). Prüfung auf die nackte PLZ.
@@ -3159,7 +3250,7 @@
         const lat = parseFloat(row['dimension_Lat_0']?.label);
         const lon = parseFloat(row['dimension_lon_0']?.label);
         if (!nl || isNaN(lat) || isNaN(lon)) continue;
-        this.Niederlassung[nl] = row['dimension_nl_name_0']?.label?.trim() || nl;
+        this.Niederlassung[nl] = row['dimension_niederlassung_0']?.label?.trim() || nl;
         this.nlKoordinaten[nl] = { lat, lon };
       }
 
@@ -3656,8 +3747,48 @@
         this.applyStyleToLayer(this._lastHighlightedLayer);
       }
       this._highlightedPLZ = plz;
-      target.setStyle({ weight: 3, color: '#f0a500', fillOpacity: this._plzFillOpacity('hover') });
-      this._lastHighlightedLayer = target;
+      this._applyHighlightStyle(target, this._plzFillOpacity('hover'));
+    }
+
+    // Zentrale Markierungs-Logik (vorher doppelt in highlightMapArea() und
+    // updateGeoLayer()). Zeichnet Schwarz mit weißem Halo:
+    // Leaflet-Polygone zeichnen nur eine Linie pro Layer → der Halo entsteht
+    // über einen zweiten, darunterliegenden Layer.
+    _applyHighlightStyle(layer, fillOpacity) {
+      if (!layer || !this.map) return;
+      // Etwaigen alten Halo zuerst wegräumen (kein Doppel-Halo).
+      this._removeHighlightHalo();
+      try {
+        // Halo: breite weiße Linie, KEINE Füllung, nicht interaktiv.
+        this._haloLayer = L.polygon(layer.getLatLngs(), {
+          color:       HIGHLIGHT_HALO,
+          weight:      HIGHLIGHT_HALO_W,
+          fill:        false,
+          interactive: false,
+          lineJoin:    'round',
+          lineCap:     'round',
+        }).addTo(this.map);
+      } catch (e) {
+        this._haloLayer = null;
+      }
+      // Eigentliche PLZ-Fläche: schwarze Kante darüber.
+      layer.setStyle({
+        weight:      HIGHLIGHT_WEIGHT,
+        color:       HIGHLIGHT_STROKE,
+        fillOpacity: fillOpacity != null ? fillOpacity : layer.options.fillOpacity,
+      });
+      // bringToFront: sonst überzeichnen die weißen 0.8px-Kanten der
+      // Nachbarpolygone die Markierung an den Rändern. Halo liegt darunter
+      // (wurde vor der schwarzen Linie zur Karte hinzugefügt).
+      layer.bringToFront?.();
+      this._lastHighlightedLayer = layer;
+    }
+
+    _removeHighlightHalo() {
+      if (this._haloLayer) {
+        try { this.map?.removeLayer(this._haloLayer); } catch (e) { /* map ggf. weg */ }
+        this._haloLayer = null;
+      }
     }
 
     zoomToFilteredPLZ() {
@@ -3678,17 +3809,74 @@
       if (this.plzImRadius && this.plzImRadius.size > 0) {
         entries = entries.filter(([plz]) => this.plzImRadius.has(plz));
       }
-      if (!this._sortState || this._sortState.column == null) {
+      // Bug-Fix (Sortierung): bei aktiver Sortierung wird sie bei JEDEM
+      // Re-Render (Moduswechsel, Kategorie-Toggle, Radius, NL-Auswahl) neu
+      // angewendet — vorher fiel der Re-Render auf Insertion-Order zurück,
+      // während das Sort-Icon weiter ▲/▼ zeigte.
+      if (this._sortState && this._sortState.column != null) {
+        entries = this._applySort(entries);
+      } else {
         entries.sort(([a], [b]) => a.localeCompare(b));
       }
       this.renderDataTableFromEntries(entries);
       this.updateStreuverlustFooter();
     }
 
+    // Sortiert die Tabellen-Einträge exakt über dieselbe Wertquelle, die auch
+    // angezeigt wird (siehe renderDataTableFromEntries):
+    //   Spalte 3 (Umsatz): Umsatz-Modus → getUmsatzSumForPLZ(filteredPLZWerte),
+    //                       WK-Modus    → value_hr_n_umsatz_0.raw
+    //   Spalte 4 (Anteil/WK): Umsatz-Modus → plzUmsatz / totalUmsatz,
+    //                         WK-Modus    → value_wk_in_percent_0.raw
+    _applySort(entries) {
+      const dir = this._sortState.direction === 'asc' ? 1 : -1;
+      const col = this._sortState.column;
+      const isUmsatzMode = this.currentMapMode === 'umsatz-multi' || this.currentMapMode === 'werbeanteil';
+
+      // Nenner für den Umsatzanteil einmalig über dieselbe Grundmenge bilden.
+      const totalUmsatz = isUmsatzMode
+        ? Object.values(this.filteredPLZWerte || {}).reduce((s, v) => s + this.getUmsatzSumForPLZ(v), 0)
+        : 0;
+
+      const valueOf = (plz, kennwerte) => {
+        switch (col) {
+          case 0: return String(plz).split(':').pop();
+          case 1: return this.geoNotes?.[plz] || '';
+          case 2: return kennwerte?.isCritical ? 2 : (kennwerte?.isHZ ? 1 : 0);
+          case 3:
+            return isUmsatzMode
+              ? this.getUmsatzSumForPLZ(this.filteredPLZWerte?.[plz] || {})
+              : (kennwerte?.['value_hr_n_umsatz_0']?.raw ?? -Infinity);
+          case 4:
+            if (isUmsatzMode) {
+              const plzUmsatz = this.getUmsatzSumForPLZ(this.filteredPLZWerte?.[plz] || {});
+              return totalUmsatz > 0 ? plzUmsatz / totalUmsatz : -Infinity;
+            }
+            return kennwerte?.['value_wk_in_percent_0']?.raw ?? -Infinity;
+          default: return 0;
+        }
+      };
+
+      return entries.slice().sort(([plzA, a], [plzB, b]) => {
+        const valA = valueOf(plzA, a);
+        const valB = valueOf(plzB, b);
+        if (typeof valA === 'string' || typeof valB === 'string') {
+          const cmp = String(valA).localeCompare(String(valB));
+          return cmp !== 0 ? cmp * dir : String(plzA).localeCompare(String(plzB));
+        }
+        // Kein (valA - valB): bei zwei -Infinity-Werten liefert die Subtraktion
+        // NaN → instabiler Sort. Stattdessen explizit vergleichen + Tie-Break
+        // nach PLZ für eine stabile, reproduzierbare Reihenfolge.
+        if (valA === valB) return String(plzA).localeCompare(String(plzB));
+        return (valA < valB ? -1 : 1) * dir;
+      });
+    }
+
     updateStreuverlustFooter() {
       const box = this.$('streuverlust-box');
       if (!box) return;
       if (!this.streuverlust) { box.innerHTML = ''; return; }
+      const cur = this._currencySym();
 
       let totalInRadius = 0;
       if (this.filteredKennwerte) {
@@ -3699,10 +3887,10 @@
         }
       }
       box.innerHTML =
-        `<span><strong>Streuverlust:</strong> ${fmtNum(this.streuverlust.umsatz)} €
+        `<span><strong>Streuverlust:</strong> ${fmtNum(this.streuverlust.umsatz)} ${cur}
           &nbsp;·&nbsp; ${(this.streuverlust.anteil * 100).toFixed(1)} %</span>
          <span style="font-weight:700;color:var(--red);white-space:nowrap">
-           Ges.: ${fmtNum(totalInRadius)} €
+           Ges.: ${fmtNum(totalInRadius)} ${cur}
          </span>`;
     }
 
@@ -3741,31 +3929,17 @@
 
     sortTableByColumn(columnIndex) {
       if (!this.filteredKennwerte) return;
+      // Nur den Sort-State togglen — die eigentliche Sortierung + das Lesen aus
+      // der korrekten (angezeigten) Wertquelle passiert zentral in
+      // renderDataTable() → _applySort(). So bleibt Sortierung und Anzeige
+      // immer konsistent, auch bei Moduswechsel.
       if (this._sortState.column === columnIndex) {
         this._sortState.direction = this._sortState.direction === 'asc' ? 'desc' : 'asc';
       } else {
         this._sortState.column = columnIndex;
         this._sortState.direction = 'desc';
       }
-      const dir = this._sortState.direction === 'asc' ? 1 : -1;
-      const entries = Object.entries(this.filteredKennwerte);
-      const sorted = entries.sort(([plzA, a], [plzB, b]) => {
-        let valA, valB;
-        switch (columnIndex) {
-          case 0: valA = String(plzA).split(':').pop(); valB = String(plzB).split(':').pop(); break;
-          case 1: valA = this.geoNotes?.[plzA] || ''; valB = this.geoNotes?.[plzB] || ''; break;
-          case 2:
-            valA = a.isCritical ? 2 : (a.isHZ ? 1 : 0);
-            valB = b.isCritical ? 2 : (b.isHZ ? 1 : 0);
-            break;
-          case 3: valA = a['value_hr_n_umsatz_0']?.raw ?? -Infinity; valB = b['value_hr_n_umsatz_0']?.raw ?? -Infinity; break;
-          case 4: valA = a['value_wk_nachbar_0']?.raw  ?? -Infinity; valB = b['value_wk_nachbar_0']?.raw  ?? -Infinity; break;
-          default: return 0;
-        }
-        if (typeof valA === 'string') return valA.localeCompare(valB) * dir;
-        return (valA - valB) * dir;
-      });
-      this.renderDataTableFromEntries(sorted);
+      this.renderDataTable(this.filteredKennwerte);
     }
 
     updateSortIcons(activeIndex) {
@@ -3860,11 +4034,19 @@
         const tr = ev.target.closest('tr');
         if (!tr || !tr.dataset.plz) return;
         const plz = tr.dataset.plz;
+        // Reihenfolge wichtig: openPopupFromTable() ruft intern closeAllPopups()
+        // auf, was die Kartenmarkierung sofort zurücksetzen würde. Deshalb ERST
+        // das Popup öffnen, DANN die Karte markieren — analog zur Reihenfolge
+        // beim Karten-Klick in _handlePolygonClick().
         this.closeAllPopups();
-        this.highlightMapArea(plz);
         this.openPopupFromTable(plz);
+        this.highlightMapArea(plz);
         this.highlightTableRow(tr);
       });
+
+      // Parallel zum DOM-Aufbau die Export-Zeilen als Rohdaten-Snapshot sammeln
+      // (respektiert automatisch aktive Filter, Radius, Sortierung, Modus).
+      const exportRows = [];
 
       entries.forEach(([plz, kennwerte], idx) => {
         const tr = document.createElement('tr');
@@ -3879,14 +4061,19 @@
         else if (kennwerte?.isHZ)  { symbol = '●'; symbolColor = '#33a02c'; }
 
         let umsatz, lastColVal;
+        let umsatzRaw = null, lastColRaw = null;
         if (isUmsatzMode) {
           const plzUmsatz = this.getUmsatzSumForPLZ(this.filteredPLZWerte?.[plz] || {});
           umsatz     = plzUmsatz > 0 ? Math.round(plzUmsatz).toLocaleString('de-DE') : '–';
           lastColVal = totalUmsatz > 0 ? (plzUmsatz / totalUmsatz * 100).toFixed(1) + ' %' : '–';
+          umsatzRaw  = plzUmsatz > 0 ? plzUmsatz : null;
+          lastColRaw = totalUmsatz > 0 ? (plzUmsatz / totalUmsatz * 100) : null;
         } else {
           const rawUmsatz = kennwerte['value_hr_n_umsatz_0']?.raw;
           umsatz     = rawUmsatz != null ? Math.round(rawUmsatz).toLocaleString('de-DE') : '–';
           lastColVal = (kennwerte['value_wk_in_percent_0']?.raw?.toFixed(1) ?? '–') + ' %';
+          umsatzRaw  = rawUmsatz != null ? rawUmsatz : null;
+          lastColRaw = kennwerte['value_wk_in_percent_0']?.raw ?? null;
         }
 
         tr.innerHTML = `
@@ -3897,11 +4084,39 @@
           <td style="${tdBase}text-align:right;font-variant-numeric:tabular-nums;width:${headers[4].width}">${escapeHtml(lastColVal)}</td>`;
 
         fragment.appendChild(tr);
+
+        const plzVals = this.filteredPLZWerte?.[plz] || {};
+        exportRows.push({
+          plz:      __bare,
+          gemeinde: (this.geoNotes?.[plz] || '').replace(/^\d{4,5}\s*[-–]?\s*/, '').trim(),
+          status:   kennwerte?.isCritical ? 'kritisch' : (kennwerte?.isHZ ? 'HZ' : ''),
+          umsatz:   umsatzRaw,
+          lastCol:  lastColRaw,
+          kunden:   Number(plzVals.kdErhebung) || 0,
+          bon:      this._bonValue(plzVals),
+        });
       });
+
+      // Snapshot des zuletzt gerenderten Zustands für den CSV-Export.
+      this._tableExport = {
+        rows: exportRows,
+        meta: { lastColLabel: isUmsatzMode ? 'Umsatz-Anteil (%)' : 'WK (%)' },
+      };
 
       tbody.appendChild(fragment);
       table.appendChild(tbody);
       scrollWrapper.appendChild(table);
+
+      // Export-Leiste (Anzahl Zeilen links, CSV-Button rechts) über der Tabelle.
+      const exportBar = document.createElement('div');
+      exportBar.className = 'table-export-bar';
+      const n = exportRows.length;
+      exportBar.innerHTML =
+        `<span class="row-count">${n} ${n === 1 ? 'Zeile' : 'Zeilen'}</span>` +
+        `<button type="button" class="table-export-btn" title="Tabelle als CSV exportieren">⤓ CSV</button>`;
+      this._on(exportBar.querySelector('.table-export-btn'), 'click', () => this.exportTableAsCSV());
+      container.appendChild(exportBar);
+
       container.appendChild(scrollWrapper);
 
       const footer = document.createElement('div');
@@ -3916,6 +4131,78 @@
         for (const row of rows) {
           if (row.dataset.plz === this._activePopupPLZ) { this.highlightTableRow(row); break; }
         }
+      }
+    }
+
+    // ── CSV-Export der aktuell sichtbaren PLZ-Tabelle ──────────────────
+    exportTableAsCSV() {
+      const snap = this._tableExport;
+      if (!snap || !snap.rows || snap.rows.length === 0) return;
+
+      const SEP = ';';  // Semikolon: sonst öffnet deutsches Excel alles in einer Spalte.
+
+      // Zahl → deutsches Format (Dezimal-Komma). Leerer String bei null/NaN.
+      const num = (x, dec) => {
+        if (x == null || !Number.isFinite(Number(x))) return '';
+        return Number(x).toFixed(dec).replace('.', ',');
+      };
+
+      // RFC-4180-Escaping + CSV-Injection-Schutz.
+      const esc = (val) => {
+        let s = val == null ? '' : String(val);
+        // Injection-Schutz: führende =, +, -, @ neutralisieren, bevor Excel sie
+        // als Formel interpretiert.
+        if (/^[=+\-@]/.test(s)) s = "'" + s;
+        // Feld quoten, wenn Trennzeichen, Quote oder Zeilenumbruch enthalten.
+        if (/[";\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+        return s;
+      };
+
+      const lastColLabel = snap.meta?.lastColLabel || 'WK (%)';
+      const cur = this._currencySym();
+      const header = ['PLZ', 'Gemeinde', 'Status', `Umsatz hochgerechnet (${cur})`, lastColLabel, 'Kunden (Bons)', `Ø-Bon (${cur})`];
+
+      const lines = [header.map(esc).join(SEP)];
+      for (const r of snap.rows) {
+        lines.push([
+          esc(r.plz),
+          esc(r.gemeinde),
+          esc(r.status),
+          num(r.umsatz, 2),   // Umsatz: 2 Nachkommastellen
+          num(r.lastCol, 1),  // Anteil/WK-%: 1 Nachkommastelle
+          num(r.kunden, 0),   // Kunden: ganzzahlig
+          num(r.bon, 2),      // Ø-Bon: 2 Nachkommastellen
+        ].join(SEP));
+      }
+
+      // UTF-8-BOM voranstellen, sonst zerlegt Excel Umlaute falsch.
+      const csv = '\ufeff' + lines.join('\r\n');
+
+      // Dateiname: Sonderzeichen durch '-' ersetzen.
+      const f = this._activeFilter || {};
+      const today = new Date();
+      const datum = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const safe = (x) => String(x ?? '').replace(/[^\w.-]+/g, '-');
+      const fname = `PLZ-Tabelle_${safe(f.erhID)}_${safe(f.jahr)}_${safe(f.nummer)}_${datum}.csv`;
+
+      try {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url;
+        a.download = fname;
+        // In Shadow-DOM-Widgets muss der <a> im Light-DOM hängen, damit der
+        // programmatische Klick zuverlässig einen Download auslöst.
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Verzögert freigeben — manche Browser brechen den Download ab, wenn die
+        // Object-URL noch im selben Tick revoked wird.
+        this._setTimeout
+          ? this._setTimeout(() => URL.revokeObjectURL(url), 1000)
+          : setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (e) {
+        console.error('[PLZ-Widget] CSV-Export fehlgeschlagen:', e);
       }
     }
 
@@ -4064,6 +4351,7 @@
       const wkExtra    = this.$('wk-extra');
       const umsatzOptionsRow = this.$('umsatz-options-row');
       const typeSwitch = this.$('umsatz-type-switch');
+      const kennzahlSwitch = this.$('umsatz-kennzahl-switch');
       const darstSwitch= this.$('umsatz-analysis-switch');
       const btnAbs     = darstSwitch?.querySelector('.mode-abs');
       const btnHH      = darstSwitch?.querySelector('.mode-hh');
@@ -4115,6 +4403,11 @@
         this.umsatzDarstellung = 'abs';
         darstSwitch.querySelectorAll('span').forEach(s => s.classList.remove('active'));
         btnAbs.classList.add('active'); btnWA.classList.add('disabled');
+        // Kennzahl beim Verlassen des Umsatz-Modus auf 'umsatz' zurücksetzen,
+        // UI synchron dazu.
+        this.umsatzKennzahl = 'umsatz';
+        kennzahlSwitch?.querySelectorAll('span').forEach(s =>
+          s.classList.toggle('active', s.dataset.kennzahl === 'umsatz'));
         this.bestreuungGroup?.clearLayers();
         this.activeCategories = new Set(CATEGORIES);
         this._shadowRoot.querySelectorAll('.category-toggle').forEach(t => t.classList.add('active'));
@@ -4142,8 +4435,13 @@
         umsatzPanel.classList.remove('hidden');
         this._syncPanelState();
         this.umsatzDarstellung = 'abs';
+        // Beim Betreten des Umsatz-Modus immer mit Kennzahl 'umsatz' starten.
+        this.umsatzKennzahl = 'umsatz';
+        kennzahlSwitch?.querySelectorAll('span').forEach(s =>
+          s.classList.toggle('active', s.dataset.kennzahl === 'umsatz'));
         darstSwitch.querySelectorAll('span').forEach(s => s.classList.remove('active'));
         btnAbs.classList.add('active'); btnWA.classList.add('disabled');
+        this.syncDarstellung();
         if (!this.showBestreuung) this.bestreuungGroup?.clearLayers();
         this.updateGeoLayer(); this.updateHeatmapLegend();
         if (this._activeFilter) {
@@ -4180,6 +4478,8 @@
           if (chkMit)   chkMit.disabled = false;
           if (chkWerbe) chkWerbe.disabled = false;
         }
+        // Werbeanteil-Verfügbarkeit hängt auch von der aktiven Kennzahl ab.
+        this.syncDarstellung();
         refreshMapAndPopup();
       });
 
@@ -4220,6 +4520,23 @@
         chkMit.checked = false;  this.useZusatzUmsatz = false; chkMit.disabled = true;
         refreshMapAndPopup();
       });
+
+      // Kennzahl-Switch (Umsatz / Ø-Bon / Kunden)
+      if (kennzahlSwitch) {
+        kennzahlSwitch.querySelectorAll('span').forEach(span => {
+          this._on(span, 'click', () => {
+            if (span.classList.contains('disabled')) return;
+            const kz = span.dataset.kennzahl || 'umsatz';
+            this.umsatzKennzahl = kz;
+            kennzahlSwitch.querySelectorAll('span').forEach(s =>
+              s.classList.toggle('active', s === span));
+            // Darstellungs-Optionen ggf. an die Kennzahl anpassen (z.B. "pro HH"
+            // ist bei Ø-Bon nicht sinnvoll) und ungültige Auswahl zurücksetzen.
+            this.syncDarstellung();
+            refreshMapAndPopup();
+          });
+        });
+      }
 
       // Kategorien
       this._shadowRoot.querySelectorAll('.category-toggle').forEach(toggle => {
@@ -4300,6 +4617,9 @@
       const plz = layer._plzKey
         || this._plzKey(layer._land || DEFAULT_LAND,
                         this._normalizePLZ(layer.feature?.properties?.plz, layer._land || DEFAULT_LAND));
+      // Wird die zuletzt markierte Fläche neu gestylt (Reset auf Normalstil),
+      // muss der weiße Halo mit verschwinden — sonst bleibt er als Geist liegen.
+      if (layer === this._lastHighlightedLayer) this._removeHighlightHalo();
       const v   = this.filteredPLZWerte?.[plz];
       const hasRadius = this.plzImRadius instanceof Set && this.plzImRadius.size > 0;
 
@@ -4366,7 +4686,12 @@
       const v = this.filteredPLZWerte?.[plz];
       if (!v) return '#cfd4da';
       if (this.currentMapMode === 'wk')           return this.getColor(v.hz ? v.wk : v.wkPot, v.hz);
-      if (this.currentMapMode === 'umsatz-multi') return this.getDynamicHeatColor(this.getUmsatzSumForPLZ(v), this._maxValueCache || 1);
+      if (this.currentMapMode === 'umsatz-multi') {
+        // Kennzahl-Umschaltung: Umsatz (Standard) / Anzahl Kunden / Ø-Bon.
+        if (this.umsatzKennzahl === 'kunden') return this.getDynamicHeatColor(this._kundenValue(v), this._maxValueCache || 1);
+        if (this.umsatzKennzahl === 'bon')    return this.getBonIndexColor(this._bonValue(v) / (this._bonRefCache || 1));
+        return this.getDynamicHeatColor(this.getUmsatzSumForPLZ(v), this._maxValueCache || 1);
+      }
       if (this.currentMapMode === 'werbeanteil')  return this.getWerbeAnteilColor(v.werbeAnteil ?? 0);
       return '#cfd4da';
     }
@@ -4380,9 +4705,24 @@
           if (Number.isFinite(val) && val > maxValue) maxValue = val;
         }
       } else if (this.currentMapMode === 'umsatz-multi') {
-        for (const v of Object.values(plzWerte)) {
-          const sum = this.getUmsatzSumForPLZ(v);
-          if (sum > maxValue) maxValue = sum;
+        if (this.umsatzKennzahl === 'bon') {
+          // Ø-Bon skaliert nicht über ein Maximum, sondern über die Abweichung
+          // vom (gewichteten) Referenzwert. Max=1 → getBonIndexColor nutzt den
+          // Referenzwert direkt.
+          this._computeBonReferenz();
+          this._maxValueCache = 1;
+          return 1;
+        }
+        if (this.umsatzKennzahl === 'kunden') {
+          for (const v of Object.values(plzWerte)) {
+            const kv = this._kundenValue(v);
+            if (kv > maxValue) maxValue = kv;
+          }
+        } else {
+          for (const v of Object.values(plzWerte)) {
+            const sum = this.getUmsatzSumForPLZ(v);
+            if (sum > maxValue) maxValue = sum;
+          }
         }
       } else if (this.currentMapMode === 'werbeanteil') {
         this._maxValueCache = 1; return 1;
@@ -4448,7 +4788,7 @@
 
       if (this._highlightedPLZ) {
         const layer = this._layerByPLZ?.[this._highlightedPLZ];
-        if (layer) layer.setStyle({ weight: 3, color: '#f0a500', fillOpacity: layer.options.fillOpacity });
+        if (layer) this._applyHighlightStyle(layer, layer.options.fillOpacity);
       }
     }
 
@@ -4540,6 +4880,7 @@
         Hellweg:  { color: '#e30613', label: 'HEL', size: 24 },
         Toom:     { color: '#00843d', label: 'TOO', size: 24 },
         Hagebau:  { color: '#e94e1b', label: 'HAG', size: 24 },
+        H2B:      { color: '#6a3d9a', label: 'H2B', size: 24 },
       };
       const defaultConfig = { color: '#888', label: '???', size: 24 };
 
@@ -5028,6 +5369,7 @@
 
     showUmsatzPopup(plz, values) {
       const bare = String(plz).split(':').slice(1).join(':') || String(plz);
+      const cur = this._currencySym();
       const popup = this.$('side-popup-umsatz');
       for (const id of ['side-popup', 'side-popup-overview']) {
         const el = this.$(id);
@@ -5079,6 +5421,21 @@
                : useWerbe ? 'Werbeumsatz' : 'Mitgekauft';
       const dis = (key) => !active[key] ? 'opacity:0.3;filter:grayscale(1)' : '';
 
+      // Erhebungsdaten: Ist-Umsatz, Kunden (Bons) und Ø-Bon inkl. Index.
+      const kd        = Number(values.kdErhebung)     || 0;
+      const umsatzIst = Number(values.umsatzErhebung) || 0;
+      const bon       = this._bonValue(values);
+      const bonRef    = this._bonRefCache || this._computeBonReferenz();
+      const umsatzIstTxt = umsatzIst > 0 ? fmtNum(umsatzIst) + ' ' + cur : '–';
+      const kundenTxt    = kd > 0 ? fmtNum(kd) : '–';
+      let bonTxt = '–';
+      if (bon > 0) {
+        const idx = bonRef > 0 ? Math.round((bon / bonRef) * 100) : null;
+        bonTxt = fmtNum(bon) + ' ' + cur + (idx != null ? ` <span style="opacity:.6;font-weight:500">(Idx ${idx})</span>` : '');
+      } else if (kd > 0 && kd < BON_MIN_KD) {
+        bonTxt = `<span style="opacity:.6;font-weight:500">&lt; ${BON_MIN_KD} Bons</span>`;
+      }
+
       popup.innerHTML = `
         <div class="popup-header">
           <div style="overflow:hidden;min-width:0">
@@ -5090,8 +5447,8 @@
         </div>
         <div style="overflow-y:auto;flex:1;min-height:0;">
           <div class="umsatz-subheader">
-            <span class="strong">${escapeHtml(hl)}: ${fmtNum(totalAbs)} €</span><br>
-            <span style="font-size:0.78rem;color:var(--gray-500)">${fmtDec(totalHH)} € / HH &nbsp;·&nbsp; Werbeanteil: ${escapeHtml(antWA)} %</span>
+            <span class="strong">${escapeHtml(hl)}: ${fmtNum(totalAbs)} ${cur}</span><br>
+            <span style="font-size:0.78rem;color:var(--gray-500)">${fmtDec(totalHH)} ${cur} / HH &nbsp;·&nbsp; Werbeanteil: ${escapeHtml(antWA)} %</span>
           </div>
           <div class="umsatz-bar" style="margin:8px 14px 2px">
             <div style="background:var(--red);width:${pct(tN,tN+tW+tZ)}%"></div>
@@ -5110,17 +5467,17 @@
             <div class="value" style="font-weight:700;color:var(--gray-800)">Absolut</div>
             <div class="value" style="font-weight:700;color:var(--gray-800)">/ HH</div>
             <div class="label" style="${dis('stationaer')}">🏬 Stationär</div>
-            <div class="value" style="${dis('stationaer')}">${fmtNum(st.abs)} €</div>
-            <div class="value" style="${dis('stationaer')}">${fmtDec(st.hh)} €</div>
+            <div class="value" style="${dis('stationaer')}">${fmtNum(st.abs)} ${cur}</div>
+            <div class="value" style="${dis('stationaer')}">${fmtDec(st.hh)} ${cur}</div>
             <div class="label" style="${dis('pluscard')}">💳 Pluscard</div>
-            <div class="value" style="${dis('pluscard')}">${fmtNum(pc.abs)} €</div>
-            <div class="value" style="${dis('pluscard')}">${fmtDec(pc.hh)} €</div>
+            <div class="value" style="${dis('pluscard')}">${fmtNum(pc.abs)} ${cur}</div>
+            <div class="value" style="${dis('pluscard')}">${fmtDec(pc.hh)} ${cur}</div>
             <div class="label" style="${dis('ra')}">📦 R&amp;A</div>
-            <div class="value" style="${dis('ra')}">${fmtNum(ra.abs)} €</div>
-            <div class="value" style="${dis('ra')}">${fmtDec(ra.hh)} €</div>
+            <div class="value" style="${dis('ra')}">${fmtNum(ra.abs)} ${cur}</div>
+            <div class="value" style="${dis('ra')}">${fmtDec(ra.hh)} ${cur}</div>
             <div class="label" style="${dis('online')}">🛒 KUBE OS</div>
-            <div class="value" style="${dis('online')}">${fmtNum(os.abs)} €</div>
-            <div class="value" style="${dis('online')}">${fmtDec(os.hh)} €</div>
+            <div class="value" style="${dis('online')}">${fmtNum(os.abs)} ${cur}</div>
+            <div class="value" style="${dis('online')}">${fmtDec(os.hh)} ${cur}</div>
           </div>
 
           <div class="section-title">Umsatzanteile (Gesamt)</div>
@@ -5137,14 +5494,24 @@
             <span><span style="color:#ffb000">⬤</span> KUBE OS</span>
           </div>
 
-          <div class="section-title">PLZ-Daten</div>
-          <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:3px 10px;padding:8px 14px 14px;font-size:0.82rem;">
+          <div class="section-title">Strukturdaten</div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:3px 10px;padding:8px 14px 12px;font-size:0.82rem;">
             <div style="color:var(--gray-600);font-weight:500">Haushalte</div>
             <div style="text-align:right;font-weight:700;color:var(--gray-800)">${fmtNum(values.haushalte)}</div>
             <div style="color:var(--gray-600);font-weight:500">Werbeverweigerer</div>
             <div style="text-align:right;font-weight:700;color:var(--gray-800)">${values.werbeverweigerer > 0 ? fmtNum(values.werbeverweigerer) + ' %' : '–'}</div>
             <div style="color:var(--gray-600);font-weight:500">Kaufkraft-Index</div>
             <div style="text-align:right;font-weight:700;color:var(--gray-800)">${values.kaufkraftIndex > 0 ? fmtNum(values.kaufkraftIndex) : '–'}</div>
+          </div>
+
+          <div class="section-title">Erhebungsdaten</div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:3px 10px;padding:8px 14px 14px;font-size:0.82rem;">
+            <div style="color:var(--gray-600);font-weight:500">Umsatz (Ist)</div>
+            <div style="text-align:right;font-weight:700;color:var(--gray-800)">${umsatzIstTxt}</div>
+            <div style="color:var(--gray-600);font-weight:500">Kunden (Bons)</div>
+            <div style="text-align:right;font-weight:700;color:var(--gray-800)">${kundenTxt}</div>
+            <div style="color:var(--gray-600);font-weight:500">Ø-Bon</div>
+            <div style="text-align:right;font-weight:700;color:var(--gray-800)">${bonTxt}</div>
           </div>
         </div>`;
 
@@ -5181,6 +5548,7 @@
       if (!this._activeFilter) return;
       const popup = this.$('side-popup-overview');
       if (!popup) return;
+      const cur = this._currencySym();
 
       for (const id of ['side-popup', 'side-popup-umsatz']) {
         const el = this.$(id);
@@ -5289,8 +5657,8 @@
         </div>
         <div style="overflow-y:auto;flex:1;min-height:0;">
           <div class="umsatz-subheader">
-            <span class="strong">${escapeHtml(hl)}: ${fmtNum(totalAbs)} €</span><br>
-            <span style="font-size:0.78rem;color:var(--gray-500)">${fmtDec(totalHH)} € / HH &nbsp;·&nbsp; Werbeanteil: ${escapeHtml(antWA)} %</span>
+            <span class="strong">${escapeHtml(hl)}: ${fmtNum(totalAbs)} ${cur}</span><br>
+            <span style="font-size:0.78rem;color:var(--gray-500)">${fmtDec(totalHH)} ${cur} / HH &nbsp;·&nbsp; Werbeanteil: ${escapeHtml(antWA)} %</span>
           </div>
           <div class="umsatz-bar" style="margin:8px 14px 2px">
             <div style="background:var(--red);width:${pct(tN,tN+tW+tZ)}%"></div>
@@ -5306,9 +5674,9 @@
           <div class="section-title">WK-Kennwerte</div>
           <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:3px 10px;padding:8px 14px;font-size:0.82rem;">
             <div style="color:var(--gray-600);font-weight:500">Umsatz (hochgerechnet)</div>
-            <div style="text-align:right;font-weight:700;color:var(--gray-800)">${fmtNum(totalUmsatzHR)} €</div>
+            <div style="text-align:right;font-weight:700;color:var(--gray-800)">${fmtNum(totalUmsatzHR)} ${cur}</div>
             <div style="color:var(--gray-600);font-weight:500">HZ-Werbekosten</div>
-            <div style="text-align:right;font-weight:700;color:var(--gray-800)">${fmtNum(totalHZKosten)} €</div>
+            <div style="text-align:right;font-weight:700;color:var(--gray-800)">${fmtNum(totalHZKosten)} ${cur}</div>
             <div style="color:var(--gray-600);font-weight:500">Haushalte</div>
             <div style="text-align:right;font-weight:700;color:var(--gray-800)">${fmtNum(Math.round(totalHaushalteWK))}</div>
           </div>
@@ -5333,17 +5701,17 @@
             <div class="value" style="font-weight:700;color:var(--gray-800)">Absolut</div>
             <div class="value" style="font-weight:700;color:var(--gray-800)">/ HH</div>
             <div class="label" style="${dis('stationaer')}">🏬 Stationär</div>
-            <div class="value" style="${dis('stationaer')}">${fmtNum(st.abs)} €</div>
-            <div class="value" style="${dis('stationaer')}">${fmtDec(st.hh)} €</div>
+            <div class="value" style="${dis('stationaer')}">${fmtNum(st.abs)} ${cur}</div>
+            <div class="value" style="${dis('stationaer')}">${fmtDec(st.hh)} ${cur}</div>
             <div class="label" style="${dis('pluscard')}">💳 Pluscard</div>
-            <div class="value" style="${dis('pluscard')}">${fmtNum(pc.abs)} €</div>
-            <div class="value" style="${dis('pluscard')}">${fmtDec(pc.hh)} €</div>
+            <div class="value" style="${dis('pluscard')}">${fmtNum(pc.abs)} ${cur}</div>
+            <div class="value" style="${dis('pluscard')}">${fmtDec(pc.hh)} ${cur}</div>
             <div class="label" style="${dis('ra')}">📦 R&amp;A</div>
-            <div class="value" style="${dis('ra')}">${fmtNum(ra.abs)} €</div>
-            <div class="value" style="${dis('ra')}">${fmtDec(ra.hh)} €</div>
+            <div class="value" style="${dis('ra')}">${fmtNum(ra.abs)} ${cur}</div>
+            <div class="value" style="${dis('ra')}">${fmtDec(ra.hh)} ${cur}</div>
             <div class="label" style="${dis('online')}">🛒 KUBE OS</div>
-            <div class="value" style="${dis('online')}">${fmtNum(os.abs)} €</div>
-            <div class="value" style="${dis('online')}">${fmtDec(os.hh)} €</div>
+            <div class="value" style="${dis('online')}">${fmtNum(os.abs)} ${cur}</div>
+            <div class="value" style="${dis('online')}">${fmtDec(os.hh)} ${cur}</div>
           </div>
         </div>`;
 
@@ -5364,6 +5732,43 @@
       }
       this._activePopupPLZ = null; this._activePopupType = null;
       this._syncPanelState();
+    }
+
+    // Hält die Darstellungs-Optionen (Absolut / pro HH / Werbeanteil) mit der
+    // aktiven Kennzahl konsistent:
+    //   - "pro HH" ist bei Kennzahl 'bon' deaktiviert (Mittelwert pro Haushalt
+    //     ergibt keinen Sinn).
+    //   - "Werbeanteil" ist nur bei Kennzahl 'umsatz' UND Werbeumsatz-Modus
+    //     aktivierbar.
+    // Bei ungültiger aktueller Auswahl fällt die Darstellung auf 'abs' zurück.
+    // Wechselt die Kennzahl weg von 'umsatz', während der Werbeanteil-Modus
+    // aktiv ist, wird zurück auf 'umsatz-multi' geschaltet.
+    syncDarstellung() {
+      const darstSwitch = this.$('umsatz-analysis-switch');
+      if (!darstSwitch) return;
+      const btnAbs = darstSwitch.querySelector('.mode-abs');
+      const btnHH  = darstSwitch.querySelector('.mode-hh');
+      const btnWA  = darstSwitch.querySelector('.mode-werbeanteil');
+
+      const hhAllowed = this.umsatzKennzahl !== 'bon';
+      const waAllowed = this.umsatzKennzahl === 'umsatz' && this.umsatzMainMode === 'werbung';
+
+      btnHH?.classList.toggle('disabled', !hhAllowed);
+      btnWA?.classList.toggle('disabled', !waAllowed);
+
+      // Ungültige aktuelle Auswahl → auf 'abs' zurückfallen.
+      const invalidHH = this.umsatzDarstellung === 'hh' && !hhAllowed;
+      const invalidWA = this.currentMapMode === 'werbeanteil' && !waAllowed;
+      if (invalidHH || invalidWA) {
+        this.umsatzDarstellung = 'abs';
+        darstSwitch.querySelectorAll('span').forEach(s => s.classList.remove('active'));
+        btnAbs?.classList.add('active');
+      }
+      // Wenn die Kennzahl nicht mehr 'umsatz' ist, kann der Werbeanteil-Modus
+      // nicht aktiv bleiben.
+      if (this.currentMapMode === 'werbeanteil' && this.umsatzKennzahl !== 'umsatz') {
+        this.currentMapMode = 'umsatz-multi';
+      }
     }
 
     _rerenderActivePopup() {
@@ -6073,6 +6478,7 @@
           if (layer && this._geoLayer) this.applyStyleToLayer(layer);
           this._highlightedPLZ = null;
         }
+        this._removeHighlightHalo();
         this._lastHighlightedLayer = null;
         // Critical-Marker der vorigen Aggregation entfernen
         this._clearDoppelMarkers?.();
@@ -6166,6 +6572,13 @@
       };
 
       const aggregated = {};
+      // Feed-Trio je nach Anzeige-Basis (hochgerechnet vs. ist). Ø-Bon nutzt
+      // separat immer den Ist-Gesamtwert (value_ums_erhebung / BUMISTB).
+      const isHochger = UMSATZ_DISPLAY_BASIS !== 'ist';
+      const F_GES = isHochger ? 'value_hr_n_umsatz_0' : 'value_ums_erhebung_0'; // BUMSNHOCH | BUMISTB
+      const F_WRB = isHochger ? 'value_werbe_hoch_0'  : 'value_werbe_ist_0';    // BPROHOCH  | BUMPROB
+      const F_ZUS = isHochger ? 'value_zusatz_hoch_0' : 'value_zusatz_ist_0';   // BPROZUSH  | BUMPROBZ
+
       for (const row of rows) {
         const nl = row['dimension_niederlassung_0']?.id?.trim();
         if (this._selectedNLs?.size > 0 && !this._selectedNLs.has(nl)) continue;
@@ -6182,29 +6595,30 @@
           };
         }
         const v = aggregated[plz];
+        // Stammdaten sind auf JEDER PLZ_QUELLE-Zeile wiederholt (keine Gummierung).
+        // HH/Kaufkraft via Ø, Werbeverweigerer via max → robust gegen die
+        // Wiederholung (Ø/max von [X,X,X,X] = X). Ist-Gesamtumsatz, Bons und
+        // Auflage sind je Herkunft aufgeteilt → additiv über alle Zeilen summiert.
         const hh = parseHH(row['value_haushalte_0']?.raw);
         if (hh > 0) v._hhValues.push(hh);
-        v.umsatzErhebung    += safe(row['value_ums_erhebung_0']?.raw);
-        v.kdErhebung        += safe(row['value_kd_erhebung_0']?.raw);
-        v.auflage           += safe(row['value_auflage_0']?.raw);
+        v.umsatzErhebung    += safe(row['value_ums_erhebung_0']?.raw); // BUMISTB (Ist ges., je Herkunft)
+        v.kdErhebung        += safe(row['value_kd_erhebung_0']?.raw);  // BRECEIPTS
+        v.auflage           += safe(row['value_auflage_0']?.raw);      // BAUFLAGE
         v.werbeverweigerer   = Math.max(v.werbeverweigerer, safe(row['value_werbeverweigerer_0']?.raw));
         const kk = safe(row['value_kaufkraft_0']?.raw);
         if (kk > 0) v._kkValues.push(kk);
 
-        v.umsatz     += safe(row['value_umsatz_stationaer_0']?.raw);
-        v.ra         += safe(row['value_umsatz_ra_0']?.raw);
-        v.onlineshop += safe(row['value_umsatz_online_0']?.raw);
-        v.pluscard   += safe(row['value_umsatz_grosskunden_0']?.raw);
-
-        v.umsatzWerbung     += safe(row['value_umsatz_stationaer_werbung_0']?.raw);
-        v.raWerbung         += safe(row['value_umsatz_ra_werbung_0']?.raw);
-        v.onlineshopWerbung += safe(row['value_umsatz_online_werbung_0']?.raw);
-        v.pluscardWerbung   += safe(row['value_umsatz_grosskunden_werbung_0']?.raw);
-
-        v.umsatzZusatz     += safe(row['value_umsatz_stationaer_zusatz_0']?.raw);
-        v.raZusatz         += safe(row['value_umsatz_ra_zusatz_0']?.raw);
-        v.onlineshopZusatz += safe(row['value_umsatz_online_zusatz_0']?.raw);
-        v.pluscardZusatz   += safe(row['value_umsatz_grosskunden_zusatz_0']?.raw);
+        // Kategorie aus PLZ_QUELLE ableiten und in den passenden Bucket buchen.
+        // Umsatz je Herkunft ist additiv (echte Aufteilung, keine Wiederholung).
+        const cat  = mapUmsatzQuelle(row['dimension_plz_quelle_0']?.id);
+        if (!cat) continue; // unbekannte/aggregierte Herkunft → nicht einbuchen
+        const uGes = safe(row[F_GES]?.raw);
+        const uWrb = safe(row[F_WRB]?.raw);
+        const uZus = safe(row[F_ZUS]?.raw);
+        if (cat === 'stationaer') { v.umsatz     += uGes; v.umsatzWerbung     += uWrb; v.umsatzZusatz     += uZus; }
+        else if (cat === 'ra')    { v.ra         += uGes; v.raWerbung         += uWrb; v.raZusatz         += uZus; }
+        else if (cat === 'online'){ v.onlineshop += uGes; v.onlineshopWerbung += uWrb; v.onlineshopZusatz += uZus; }
+        else if (cat === 'pluscard'){ v.pluscard += uGes; v.pluscardWerbung   += uWrb; v.pluscardZusatz   += uZus; }
       }
 
       // Durchschnitte berechnen, Per-Household-Werte ableiten
@@ -6295,6 +6709,55 @@
       return s;
     }
 
+    // ── Heatmap-Kennzahlen: Anzahl Kunden (Bons) & Ø-Bon ───────────────
+    // Anzahl Kunden (= Anzahl Bons) einer PLZ. Bei Darstellung "pro HH" durch
+    // die Haushalte geteilt.
+    _kundenValue(v) {
+      const kd = Number(v?.kdErhebung) || 0;
+      if (kd <= 0) return 0;
+      if (this.umsatzDarstellung === 'hh') {
+        const hh = Number(v?.haushalte) || 0;
+        return hh > 0 ? kd / hh : 0;
+      }
+      return kd;
+    }
+
+    // Durchschnittsbon einer PLZ = Ist-Umsatz der Erhebung / Anzahl Bons.
+    // WICHTIG (Abschnitt 6): Zähler ist der Ist-Umsatz (umsatzErhebung), NICHT
+    // der hochgerechnete Umsatz — sonst wandert der Hochrechnungsfaktor in den
+    // vermeintlichen Ø-Bon und der Wert ist kein echter Bondurchschnitt mehr.
+    _bonValue(v) {
+      const kd  = Number(v?.kdErhebung)     || 0;
+      const ums = Number(v?.umsatzErhebung) || 0;
+      if (kd < BON_MIN_KD || ums <= 0) return 0;
+      return ums / kd;
+    }
+
+    // Gewichteter Referenz-Ø-Bon (Index 100 = Durchschnitt): Σ Umsatz / Σ Kunden
+    // über alle PLZ mit kd >= BON_MIN_KD — NICHT der Mittelwert der PLZ-Bons
+    // (sonst zählt eine PLZ mit 5 Bons so viel wie eine mit 5.000).
+    _computeBonReferenz() {
+      let ums = 0, kd = 0;
+      for (const v of Object.values(this.filteredPLZWerte || {})) {
+        const k = Number(v?.kdErhebung) || 0;
+        if (k < BON_MIN_KD) continue;
+        ums += Number(v?.umsatzErhebung) || 0;
+        kd  += k;
+      }
+      this._bonRefCache = kd > 0 ? ums / kd : 0;
+      return this._bonRefCache;
+    }
+
+    // Farbskala Ø-Bon: divergierend um den Referenzwert (ratio = Bon/Referenz).
+    // Rot = über, Gelb = unter Durchschnitt (dieselben Farbwerte wie
+    // getDynamicHeatColor). Unter BON_MIN_KD Bons → grau (ratio <= 0).
+    getBonIndexColor(ratio) {
+      if (!Number.isFinite(ratio) || ratio <= 0) return '#cfd4da';
+      return ratio > 1.20 ? '#7a0f17' : ratio > 1.10 ? '#b41821' :
+             ratio > 1.03 ? '#d9483b' : ratio > 0.97 ? '#e96a3a' :
+             ratio > 0.90 ? '#f08a3c' : ratio > 0.80 ? '#f6b65b' : '#fce9b2';
+    }
+
     // ── WK-Kennwerte (HZ-Kosten pro PLZ etc.) ──────────────────────────
     computeWKKennwerte() {
       if (!this.filteredData) return;
@@ -6305,6 +6768,23 @@
       const hasNLFilter = selNLs && selNLs.size > 0;
       const hasRadius   = radius instanceof Set && radius.size > 0;
       const data = this.filteredData;
+
+      // Datenmodell-Umstellung: WK-Kosten (BWERBKOST) sind auf JEDER PLZ_QUELLE-
+      // Zeile derselben (PLZ, NL) identisch wiederholt. Würde man sie pro Zeile
+      // summieren, ver-4-fachten sich die Werbekosten. Daher pro (PLZ, NL) nur
+      // EINMAL zählen (Max — bei identischer Wiederholung ohnehin derselbe Wert),
+      // erst dann über die NLs summieren.
+      const addHz = (bucket, nl, val) => {
+        if (!(val > 0)) return;
+        const key = nl || '__nonl__';
+        const prev = bucket.hzByNL.get(key) || 0;
+        if (val > prev) bucket.hzByNL.set(key, val);
+      };
+      const sumHz = (bucket) => {
+        let s = 0;
+        if (bucket && bucket.hzByNL) for (const val of bucket.hzByNL.values()) s += val;
+        return s;
+      };
 
       for (let i = 0, len = data.length; i < len; i++) {
         const row = data[i];
@@ -6321,8 +6801,8 @@
 
         // Bucket 1: komplett ungefiltert — für isHZ/hzKosten-Fallback
         unfilteredUmsatzByPLZ[plz] = (unfilteredUmsatzByPLZ[plz] || 0) + umsatz;
-        if (!unfilteredByPLZ[plz]) unfilteredByPLZ[plz] = { hzKosten: 0, hzCount: 0, hzNLs: new Set() };
-        unfilteredByPLZ[plz].hzKosten += hzKosten;
+        if (!unfilteredByPLZ[plz]) unfilteredByPLZ[plz] = { hzByNL: new Map(), hzCount: 0, hzNLs: new Set() };
+        addHz(unfilteredByPLZ[plz], nl, hzKosten);
         if (hzFlag && nl) {
           unfilteredByPLZ[plz].hzNLs.add(nl);
           unfilteredByPLZ[plz].hzCount = unfilteredByPLZ[plz].hzNLs.size;
@@ -6331,8 +6811,8 @@
         // Bucket 2: nach NL-Filter, vor Radius — Nenner für WK% bei aktivem NL-Filter
         if (nlPassed) {
           nlFilteredUmsatzByPLZ[plz] = (nlFilteredUmsatzByPLZ[plz] || 0) + umsatz;
-          if (!nlFilteredByPLZ[plz]) nlFilteredByPLZ[plz] = { hzKosten: 0, hzCount: 0, hzNLs: new Set() };
-          nlFilteredByPLZ[plz].hzKosten += hzKosten;
+          if (!nlFilteredByPLZ[plz]) nlFilteredByPLZ[plz] = { hzByNL: new Map(), hzCount: 0, hzNLs: new Set() };
+          addHz(nlFilteredByPLZ[plz], nl, hzKosten);
           if (hzFlag && nl) {
             nlFilteredByPLZ[plz].hzNLs.add(nl);
             nlFilteredByPLZ[plz].hzCount = nlFilteredByPLZ[plz].hzNLs.size;
@@ -6341,24 +6821,24 @@
 
         if (!nlPassed) continue;
         if (hasRadius && !radius.has(plz)) continue;
-        if (!aggregated[plz]) aggregated[plz] = { hzCount: 0, hzNLs: new Set(), umsatzNetto: 0, hzKosten: 0, potHzSum: 0, potHzCount: 0 };
+        if (!aggregated[plz]) aggregated[plz] = { hzCount: 0, hzNLs: new Set(), umsatzNetto: 0, hzByNL: new Map(), potHzByNL: new Map() };
         const entry = aggregated[plz];
         // Bug 3 Fix: eindeutige NL-IDs zählen, nicht Rows
         if (hzFlag && nl) {
           entry.hzNLs.add(nl);
           entry.hzCount = entry.hzNLs.size;
         }
-        entry.umsatzNetto += umsatz;
-        entry.hzKosten    += hzKosten;
-        // potHz: NL-Rows mit 0 werden nicht mitgezählt (Datenausfälle bzw. NLs
-        // die bewusst 0 als potentielle Werbekosten haben). Sonst zieht ein
-        // einzelner 0-Wert den Durchschnitt fälschlich runter.
-        // Annahme (siehe Domain-Antwort): potHz ist PLZ-Stammdatum, alle
-        // gültigen NL-Rows liefern denselben Wert > 0.
+        entry.umsatzNetto += umsatz; // BUMSNHOCH je (NL,Herkunft) → Summe = PLZ-Total
+        addHz(entry, nl, hzKosten);
+        // potHz (BWKOSTPOT): ebenfalls je (PLZ,NL) wiederholt → pro NL einmal
+        // (Max), dann Ø über die NLs (PLZ-Stammdatum, alle NLs liefern denselben
+        // Wert). Vorher wurde pro Row gemittelt — mit 4× Herkunft-Zeilen zwar
+        // robust, aber per-NL-Dedup ist sauberer und konsistent zu hzKosten.
         const potHz = row['value_hz_potentiell_0']?.raw;
         if (typeof potHz === 'number' && potHz > 0) {
-          entry.potHzSum += potHz;
-          entry.potHzCount++;
+          const k = nl || '__nonl__';
+          const prev = entry.potHzByNL.get(k) || 0;
+          if (potHz > prev) entry.potHzByNL.set(k, potHz);
         }
       }
 
@@ -6372,40 +6852,31 @@
         // Ohne NL-Filter: alle Rows der PLZ (unfilteredByPLZ).
         // Hintergrund: BW liefert Umsatz auf Nachbar-NL-Rows und Kosten auf HZ-NL-Row —
         // WK%-Nenner muss denselben NL-Scope haben wie der Zähler (hzKosten).
-        const refBucket  = hasNLFilter ? (nlFilteredByPLZ[plz] || { hzKosten: 0, hzCount: 0 })
-                                       : (unfilteredByPLZ[plz]  || { hzKosten: 0, hzCount: 0 });
+        const refBucket  = hasNLFilter ? (nlFilteredByPLZ[plz] || { hzByNL: new Map(), hzCount: 0 })
+                                       : (unfilteredByPLZ[plz]  || { hzByNL: new Map(), hzCount: 0 });
         const umsatzRef  = hasNLFilter ? (nlFilteredUmsatzByPLZ[plz] ?? 0)
                                        : (unfilteredUmsatzByPLZ[plz]  ?? 0);
 
-        // hzKosten-Fallback (B37): Wenn `entry.hzKosten` 0 ist (HZ-NL nicht im
-        // NL-Filter ODER nicht im Radius), springt der Fallback auf den Scope-
-        // Bucket. Im NL-Filter-Modus zeigt das die ungefilterten HZ-Kosten —
-        // bewusste Designentscheidung (User-friendly, zeigt Original-WK auch
-        // bei NL-Filter). Wenn das geändert werden soll: hier `entry.hzKosten`
-        // direkt nehmen ohne Fallback.
-        const hzKosten   = entry.hzKosten > 0 ? entry.hzKosten : refBucket.hzKosten;
+        // hzKosten-Fallback (B37): Wenn die (radius+NL-)gefilterten HZ-Kosten 0
+        // sind (HZ-NL nicht im NL-Filter ODER nicht im Radius), springt der
+        // Fallback auf den Scope-Bucket. hzKosten je Bucket = Σ der pro (PLZ,NL)
+        // deduplizierten Werte (siehe addHz/sumHz oben).
+        const entryHz    = sumHz(entry);
+        const hzKosten   = entryHz > 0 ? entryHz : sumHz(refBucket);
         // isHZ gilt nur wenn die selektierte NL die HZ-Bestreuung hat.
-        // Wenn NL-Filter aktiv und die HZ-NL rausgefiltert ist → isHZ=false,
-        // PLZ erscheint als nicht bestreut → potentielle WK werden angezeigt.
         const isHZ       = entry.hzCount > 0;
         const isCritical = entry.hzCount > 1;
 
         // WK%-Nenner = Umsatz im gewählten NL-Scope (alle NLs oder nur selektierte)
         const umsatzGesamt = umsatzRef;
-        // Domain-Frage 3 (geklärt): 0 wird angezeigt, negative Werte (Stornos
-        // im Saldo) werden zu 0 normalisiert. Kein Fallback mehr auf umsatzGesamt
-        // wenn entry.umsatzNetto = 0 — das hatte vorher bei NL-Filter+Radius
-        // einen ungefilterten Wert eingeschmuggelt.
         const umsatzNetto = entry.umsatzNetto > 0 ? entry.umsatzNetto : 0;
-        // WK% Nenner = Gesamtumsatz PLZ (inkl. Nachbar-NLs) — so wie BW-Analyse
         const wkPercent  = umsatzGesamt > 0 ? Number(((hzKosten / umsatzGesamt) * 100).toFixed(2)) : 0;
-        // wkNachbarn = gleich wie wkPercent (beide auf Gesamtumsatz)
         const wkNachbarn = wkPercent;
-        // Hinweis (B35): avgPotHz ist Mittelwert über NL-Rows. Annahme — analog
-        // zu Haushalten (Antwort 1) — value_hz_potentiell_0 ist ein PLZ-Stammdatum,
-        // d.h. jede NL-Row liefert denselben Wert. Wenn das nicht zutrifft (NL-spezifisch),
-        // müsste man summieren statt mitteln.
-        const avgPotHz   = entry.potHzCount > 0 ? entry.potHzSum / entry.potHzCount : 0;
+        // avgPotHz: Ø über die pro NL deduplizierten pot. Werbekosten (PLZ-
+        // Stammdatum, alle NLs derselbe Wert → Ø = dieser Wert).
+        let potHzSum = 0, potHzCount = 0;
+        if (entry.potHzByNL) for (const val of entry.potHzByNL.values()) { potHzSum += val; potHzCount++; }
+        const avgPotHz   = potHzCount > 0 ? potHzSum / potHzCount : 0;
         const potHzPct   = umsatzGesamt > 0 ? Number(((avgPotHz / umsatzGesamt) * 100).toFixed(2)) : 0;
         const baseEntry   = base[plz] || {};
         const old         = this.filteredPLZWerte?.[plz] || {};
@@ -6451,6 +6922,11 @@
           onlineshopZusatzProHaushalt: old.onlineshopZusatzProHaushalt ?? 0,
           pluscardZusatzProHaushalt: old.pluscardZusatzProHaushalt ?? 0,
           werbeAnteil: old.werbeAnteil ?? 0,
+          // Für die Heatmap-Kennzahlen "Anzahl Kunden" und "Ø-Bon" (s. Popup,
+          // Legende, computeFillColor). Beide stammen aus der Erhebung und lagen
+          // bisher nur in filteredKennwerte — hier durchreichen.
+          kdErhebung:     old.kdErhebung     ?? 0,
+          umsatzErhebung: old.umsatzErhebung ?? 0,
         };
       }
 
@@ -6557,22 +7033,29 @@
     prepareMapData(filteredData) {
       // Bug-Fix B11/B14: Bootstrap hat NL-Klarnamen aus 00000-Stammdaten gelesen.
       // Hier NICHT pauschal überschreiben, sondern nur ergänzen wo etwas fehlt.
-      // Die Erhebungs-Rows enthalten denselben Namen unter dimension_nl_name_0?.label,
-      // aber falls das Feld fehlt fallen wir sauber auf den Bootstrap-Wert zurück.
+      // Die Erhebungs-Rows tragen den NL-Klarnamen jetzt als Label des PLANT-
+      // Merkmals (0Plant-Beschreibung); ein separates NL-Name-Feld gibt es nicht
+      // mehr. Fällt sauber auf den Bootstrap-Wert / den NL-Key zurück.
       const prevNL = this.Niederlassung || {};
       this.Niederlassung = {}; this.nlKoordinaten = {}; this.hzFlags = {}; this.extraNLs = [];
       const NL  = this.Niederlassung;
       const nlK = this.nlKoordinaten;
       const hzF = this.hzFlags;
+      // Führende Anzeige-Währung (LOC_CURRCY) aus den Daten ableiten: häufigster
+      // Code über alle Zeilen. Annahme: innerhalb einer Erhebung/eines Landes
+      // einheitlich. Fallback '€'.
+      const currTally = {};
       for (let i = 0, len = filteredData.length; i < len; i++) {
         const row = filteredData[i];
         const __land = this._landOfRow(row); const __bare = this._normalizePLZ(row['dimension_plz_0']?.id, __land); const plz = (__bare && !this._isAggregatePlz(__bare)) ? this._plzKey(__land, __bare) : null;
+        const cc = row['dimension_currency_0']?.id?.trim();
+        if (cc && !isNull(cc)) currTally[cc] = (currTally[cc] || 0) + 1;
         const nlKey = row['dimension_niederlassung_0']?.id?.trim();
         const hz = row['dimension_hzflag_0']?.id?.trim() === 'X';
         if (nlKey) {
           if (!NL[nlKey]) {
-            // Priorität: Erhebungs-Row > Bootstrap-Cache > nlKey selbst
-            const labelHere = row['dimension_nl_name_0']?.label?.trim();
+            // Priorität: PLANT-Label der Row > Bootstrap-Cache > nlKey selbst
+            const labelHere = row['dimension_niederlassung_0']?.label?.trim();
             NL[nlKey] = labelHere || prevNL[nlKey] || nlKey;
           }
           if (!nlK[nlKey]) {
@@ -6590,13 +7073,23 @@
           else if (hzF[plz] === undefined) hzF[plz] = false;
         }
       }
+      // Dominante Währung bestimmen (häufigster Code).
+      let domCurr = null, domN = -1;
+      for (const [code, n] of Object.entries(currTally)) {
+        if (n > domN) { domN = n; domCurr = code; }
+      }
+      this._displayCurrency = domCurr || 'EUR';
     }
+
+    // Aktuelles Währungssymbol (LOC_CURRCY ist führend). Fallback '€'.
+    _currencySym() { return currencySymbol(this._displayCurrency); }
 
 
     // ── Heatmap-Legende ────────────────────────────────────────────────
     updateHeatmapLegend() {
       const legend = this.$('heatmap-legend');
       if (!legend) return;
+      const cur = this._currencySym();
       if (!this._activeFilter || !this.filteredPLZWerte ||
           Object.keys(this.filteredPLZWerte).length === 0 ||
           !this.currentMapMode) {
@@ -6615,6 +7108,58 @@
         legend.classList.remove('hidden'); return;
       }
       if (this.currentMapMode === 'umsatz-multi') {
+        // ── Ø-Bon: divergierende Skala um den Referenzwert, mit Euro-Werten ──
+        if (this.umsatzKennzahl === 'bon') {
+          const ref = this._computeBonReferenz();
+          if (!Number.isFinite(ref) || ref <= 0) { legend.classList.add('hidden'); return; }
+          const nf  = (x) => x.toLocaleString('de-DE', { maximumFractionDigits: x < 20 ? 1 : 0 });
+          const eur = (f) => `${nf(ref * f)} ${cur}`;
+          const idx = (f) => Math.round(f * 100);
+          // Bucket-Grenzen als Faktoren auf den Referenzwert. Jede Zeile zeigt
+          // Euro-Spanne + Index-Bereich klein daneben.
+          const small = (t) => `<span style="opacity:.6;font-size:0.9em">${t}</span>`;
+          const bonRows = [
+            { c: '#7a0f17', lo: 1.20, hi: null,  txt: `&gt; ${eur(1.20)} ${small(`Idx &gt; ${idx(1.20)}`)}` },
+            { c: '#b41821', lo: 1.10, hi: 1.20,  txt: `${eur(1.10)} – ${eur(1.20)} ${small(`Idx ${idx(1.10)} – ${idx(1.20)}`)}` },
+            { c: '#d9483b', lo: 1.03, hi: 1.10,  txt: `${eur(1.03)} – ${eur(1.10)} ${small(`Idx ${idx(1.03)} – ${idx(1.10)}`)}` },
+            { c: '#e96a3a', lo: 0.97, hi: 1.03,  txt: `${eur(0.97)} – ${eur(1.03)} ${small(`Idx ${idx(0.97)} – ${idx(1.03)}`)}` },
+            { c: '#f08a3c', lo: 0.90, hi: 0.97,  txt: `${eur(0.90)} – ${eur(0.97)} ${small(`Idx ${idx(0.90)} – ${idx(0.97)}`)}` },
+            { c: '#f6b65b', lo: 0.80, hi: 0.90,  txt: `${eur(0.80)} – ${eur(0.90)} ${small(`Idx ${idx(0.80)} – ${idx(0.90)}`)}` },
+            { c: '#fce9b2', lo: null, hi: 0.80,  txt: `&lt; ${eur(0.80)} ${small(`Idx &lt; ${idx(0.80)}`)}` },
+          ];
+          legend.innerHTML =
+            `<strong>Ø-Bon</strong>` +
+            `<div style="font-size:0.68rem;color:#adb5bd;margin:2px 0 4px">Ø ${nf(ref)} ${cur} = Index 100</div>` +
+            bonRows.map(b => row(b.c, b.txt)).join('') +
+            row('#cfd4da', `&lt; ${BON_MIN_KD} Bons ${small('(zu wenig Daten)')}`);
+          legend.classList.remove('hidden'); return;
+        }
+
+        // ── Anzahl Kunden (Bons): 0-bis-Max, additive Größe ──
+        if (this.umsatzKennzahl === 'kunden') {
+          const perHH = this.umsatzDarstellung === 'hh';
+          let max = 0;
+          for (const v of Object.values(this.filteredPLZWerte)) {
+            const kv = this._kundenValue(v);
+            if (kv > max) max = kv;
+          }
+          if (max === 0) { legend.classList.add('hidden'); return; }
+          const dec = perHH ? 2 : 0;
+          const fmt = (x) => x.toLocaleString('de-DE', { maximumFractionDigits: dec });
+          const steps = [
+            { v: max,     label: `&gt; ${fmt(max*0.95)}` },
+            { v: max*.85, label: `${fmt(max*0.65)} – ${fmt(max*0.85)}` },
+            { v: max*.65, label: `${fmt(max*0.45)} – ${fmt(max*0.65)}` },
+            { v: max*.45, label: `${fmt(max*0.20)} – ${fmt(max*0.45)}` },
+            { v: max*.20, label: `${fmt(max*0.10)} – ${fmt(max*0.20)}` },
+            { v: 0,       label: `&lt; ${fmt(max*0.10)}` },
+          ];
+          legend.innerHTML = `<strong>${perHH ? 'Kunden pro Haushalt' : 'Anzahl Kunden (Bons)'}</strong>` +
+            steps.map(s => row(this.getDynamicHeatColor(s.v, max), s.label)).join('');
+          legend.classList.remove('hidden'); return;
+        }
+
+        // ── Umsatz (Standard) ──
         // Math.max(...values) würde bei sehr großen PLZ-Arrays (>~10k) den Stack
         // sprengen. reduce ist sicher und gleich schnell.
         let max = 0;
@@ -6625,12 +7170,12 @@
         if (max === 0) { legend.classList.add('hidden'); return; }
         const fmt = (x) => x.toLocaleString('de-DE', { maximumFractionDigits: 0 });
         const steps = [
-          { v: max,       label: `&gt; ${fmt(max*0.95)} €` },
-          { v: max*.85,   label: `${fmt(max*0.75)} – ${fmt(max*0.85)} €` },
-          { v: max*.65,   label: `${fmt(max*0.55)} – ${fmt(max*0.65)} €` },
-          { v: max*.45,   label: `${fmt(max*0.35)} – ${fmt(max*0.45)} €` },
-          { v: max*.20,   label: `${fmt(max*0.10)} – ${fmt(max*0.20)} €` },
-          { v: 0,         label: `&lt; ${fmt(max*0.10)} €` },
+          { v: max,       label: `&gt; ${fmt(max*0.95)} ${cur}` },
+          { v: max*.85,   label: `${fmt(max*0.75)} – ${fmt(max*0.85)} ${cur}` },
+          { v: max*.65,   label: `${fmt(max*0.55)} – ${fmt(max*0.65)} ${cur}` },
+          { v: max*.45,   label: `${fmt(max*0.35)} – ${fmt(max*0.45)} ${cur}` },
+          { v: max*.20,   label: `${fmt(max*0.10)} – ${fmt(max*0.20)} ${cur}` },
+          { v: 0,         label: `&lt; ${fmt(max*0.10)} ${cur}` },
         ];
         legend.innerHTML = `<strong>Umsatz</strong>` +
           steps.map(s => row(this.getDynamicHeatColor(s.v, max), s.label)).join('');
@@ -7092,6 +7637,7 @@
         if (layer && this._geoLayer) this.applyStyleToLayer(layer);
         this._highlightedPLZ = null;
       }
+      this._removeHighlightHalo();
       this._lastHighlightedLayer = null;
       this.closeAllPopups?.();
       // Bug E6 Fix: Critical-Marker (⚠️ Doppelbestreuung, ✅ HZ) der alten
