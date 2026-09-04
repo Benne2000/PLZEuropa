@@ -96,6 +96,11 @@
   const LABEL_ZOOM_MIN   = 11;   // ab diesem Zoom erscheinen PLZ-Namen
   const LABEL_ZOOM_CLEAR = 12;   // ab hier etwas größer / kräftiger
   const LABEL_MAX_COUNT  = 140;  // Hard-Cap damit die Karte nicht überflutet wird
+  // Zusätzliche Zoom-Untergrenze für die PLZ-Flächen (nur gegen extremes
+  // Herauszoomen). Bewusst niedrig, damit eine aktive Erhebung ihre Details
+  // nie unerwartet verliert — die Vorschau wird ohnehin über _activeFilter
+  // ausgeblendet, nicht über den Zoom.
+  const PLZ_MIN_ZOOM     = 6;
 
   const isNull = v => v == null || NULL_TOKENS.has(v);
 
@@ -1142,7 +1147,7 @@
 
       /* ─── Map ───────────────────────────────────────────────────── */
       .map-container { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; isolation: isolate; }
-      #map { height: 100%; width: 100%; background: #e8ecf0; }
+      #map { height: 100%; width: 100%; background: #dde5ec; }
 
       #map-interaction-block {
         position: absolute; inset: 0; z-index: 500;
@@ -2320,6 +2325,8 @@
       this._erhebungLand         = {};      // erhID → Land (DE/NL/CH) der NLs
       this._borderGroup          = null;    // LayerGroup der Länder-Außengrenzen
       this._borderByLand         = new Set();
+      this._borderLayerByLand    = new Map(); // land → Grenz-Layer (für Vorschau-Tint)
+      this._previewTintLand      = null;      // aktuell in der Vorschau getöntes Land
       this._bordersPromise       = null;    // gecachte borders.geojson
 
       // Map-Objekte
@@ -3330,6 +3337,7 @@
         this._bindGeoLayerClicks(land);
         this._bindLabelUpdates();
         this._drawCountryBorder(land, geoData);
+        this._applyDetailVisibility();   // in Vorschau/Übersicht sofort ausblenden
         this._distanceCacheNLKey = null;   // neue Polygone → Distanz-Cache neu
       } catch (err) {
         console.error(`[PLZ-Widget] GeoJSON ${land}:`, err);
@@ -3445,9 +3453,13 @@
           this._borderByLand.add(land);
           const lyr = L.geoJSON(feat, {
             renderer: this._canvasRenderer, interactive: false,
-            style: { fill: false, color: '#3a4049', weight: 1.6, opacity: 0.7, lineJoin: 'round' },
+            // Sanfte Landfläche (warmes Off-White) auf kühlem "Wasser"-
+            // Hintergrund + weiche Kante — lässt die Übersicht wie eine echte
+            // Karte wirken statt wie nackte Umrisse auf grauer Fläche.
+            style: { fill: true, fillColor: '#f4f1ea', fillOpacity: 1, color: '#aab2bd', weight: 1.2, opacity: 0.9, lineJoin: 'round' },
           });
           this._borderGroup.addLayer(lyr);
+          this._borderLayerByLand.set(land, lyr);
         }
         // Nur im Hauptmenü auf Europa zoomen (nicht über eine aktive Erhebung)
         if (!this._activeFilter) {
@@ -3493,6 +3505,27 @@
       }
       if (!this._geoLayer && this._geoLayerByLand.size) {
         this._geoLayer = this._geoLayerByLand.values().next().value;
+      }
+    }
+
+    // Level-of-Detail: die feinen PLZ-Flächen nur einblenden, wenn eine
+    // Erhebung aktiv ist UND der Zoom regional genug ist. In der Europa-/
+    // Vorschau-Ansicht (herausgezoomt, kein Filter) bleiben sie ausgeblendet,
+    // damit die Karte nicht als graues Punktraster erscheint — sichtbar sind
+    // dann nur die sauberen Ländergrenzen (+ Vorschau-Pins). Die Layer bleiben
+    // im Cache; nur ihre Karten-Zugehörigkeit wird umgeschaltet.
+    _applyDetailVisibility() {
+      if (!this.map || !this._geoLayerByLand) return;
+      let zoom;
+      try { zoom = this.map.getZoom(); } catch (e) { zoom = PLZ_MIN_ZOOM; }
+      // Primär an der aktiven Erhebung festgemacht (die Vorschau/Home-Ansicht
+      // ist der gemeldete Fall): ohne Filter → PLZ-Flächen aus. Der Zoom dient
+      // nur als zusätzliche Untergrenze für extremes Herauszoomen.
+      const show = !!this._activeFilter && zoom >= PLZ_MIN_ZOOM;
+      for (const layer of this._geoLayerByLand.values()) {
+        const on = this.map.hasLayer(layer);
+        if (show && !on)      { try { layer.addTo(this.map); } catch (e) {} }
+        else if (!show && on) { try { this.map.removeLayer(layer); } catch (e) {} }
       }
     }
 
@@ -4314,6 +4347,10 @@
       this.bestreuungGroup = L.layerGroup().addTo(this.map);
       this.competitorGroup = L.layerGroup().addTo(this.map);
       this._showAllBorders();
+      // Level-of-Detail: feine PLZ-Flächen bei jedem Zoom-Ende neu bewerten
+      // (nur regional + bei aktiver Erhebung sichtbar). Verhindert das graue
+      // Punktraster in der herausgezoomten Vorschau-/Europa-Ansicht.
+      this.map.on('zoomend', () => this._applyDetailVisibility());
 
       // Daten-Ready?
       // ACHTUNG: render()-Aufrufe MÜSSEN über _renderInProgress geschützt werden,
@@ -7470,6 +7507,10 @@
       let currentIdx = 0;
       const showErhebung = (erhID) => {
         this._previewGroup.clearLayers();
+        // Land der aktuellen Vorschau-Erhebung sanft hervorheben (BERHEBEHT =
+        // Ländercode bei Länder-Erhebungen, sonst DE für GF-Bereiche).
+        const land = COUNTRY_CONFIG[erhID] ? erhID : DEFAULT_LAND;
+        this._tintPreviewLand(land);
         const lbl = getOrCreateLabel();
         lbl.style.opacity = '0';
         this._setTimeout(() => {
@@ -7524,7 +7565,22 @@
         this._previewInterval = null;
       }
       this._previewGroup?.clearLayers();
+      this._tintPreviewLand(null);   // Landtönung zurücksetzen
       this.$('preview-erh-label')?.remove();
+    }
+
+    // Hebt in der Vorschau das aktuell gezeigte Land sanft rot hervor und setzt
+    // das zuvor getönte Land wieder auf die neutrale Landfläche zurück.
+    _tintPreviewLand(land) {
+      if (!this._borderLayerByLand) return;
+      if (this._previewTintLand === land) return;
+      const NEUTRAL = { fillColor: '#f4f1ea', color: '#aab2bd', weight: 1.2, opacity: 0.9 };
+      const ACTIVE  = { fillColor: '#fbe4e4', color: '#b41821', weight: 1.8, opacity: 0.95 };
+      const prev = this._borderLayerByLand.get(this._previewTintLand);
+      if (prev) { try { prev.setStyle(NEUTRAL); } catch (e) {} }
+      const next = land ? this._borderLayerByLand.get(land) : null;
+      if (next) { try { next.setStyle(ACTIVE); next.bringToFront?.(); } catch (e) {} }
+      this._previewTintLand = land || null;
     }
 
     // ── onCustomWidgetEvent (SAC-Hook) ─────────────────────────────────
@@ -7589,6 +7645,8 @@
       this._renderToken = (this._renderToken || 0) + 1;
 
       this._activeFilter = { erhID, jahr, nummer };
+      // Erhebung aktiv → PLZ-Flächen wieder einblenden (Level-of-Detail).
+      this._applyDetailVisibility();
       // Filter-Maske einklappen — _activeFilter muss vorher gesetzt sein
       this._setFilterFieldsCollapsed(true);
       // Kurze Attention-Animation auf dem Toggle-Button
