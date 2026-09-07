@@ -85,6 +85,10 @@
     const c = String(code).trim().toUpperCase();
     return CURRENCY_SYMBOLS[c] || c || '€';
   };
+  // Währung je Land: LOC_CURRCY lässt sich in SAC nicht als Merkmal auf den
+  // Feed legen (es ist ein Währungsfeld). Da eine Erhebung = ein Land ist
+  // (BERHEBEHT; GF-Bereiche nur in DE), ist die Währung fest bestimmbar.
+  const LAND_CURRENCY = { DE: 'EUR', NL: 'EUR', AT: 'EUR', ES: 'EUR', CH: 'CHF', CZ: 'CZK' };
 
   const PLZ_FILTER_KEYS    = ['0POSTALCODE', 'dimension_plz_0', 'dimension_plz'];
   // BERHEBEHT löst BGFBNR ab (kann ein Land ODER — nur in DE — ein GF-Bereich sein).
@@ -198,10 +202,14 @@
       *, *::before, *::after { box-sizing: border-box; }
 
       /* ─── Layout ────────────────────────────────────────────────── */
-      .layout { display: flex; height: 100%; width: 100%; background: var(--gray-50); }
+      /* container-type: die beiden Panels reagieren auf die WIDGET-Breite
+         (nicht die Viewport-Breite) — korrekt für ein eingebettetes SAC-
+         Widget, dessen Breite ≠ Fensterbreite ist. Siehe @container unten. */
+      .layout { display: flex; height: 100%; width: 100%; background: var(--gray-50);
+                container-type: inline-size; container-name: widget; }
 
       .filter-container {
-        width: 30%; padding: 14px 12px;
+        width: clamp(300px, 30%, 440px); padding: 14px 12px;
         background: var(--white);
         display: flex; flex-direction: column; height: 100%;
         position: relative; z-index: 2;
@@ -1146,7 +1154,8 @@
       }
 
       /* ─── Map ───────────────────────────────────────────────────── */
-      .map-container { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; isolation: isolate; }
+      .map-container { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; isolation: isolate;
+                       container-type: inline-size; container-name: map; }
       #map { height: 100%; width: 100%; background: #dde5ec; }
 
       #map-interaction-block {
@@ -1230,16 +1239,56 @@
 
       /* ─── Map-Buttons ───────────────────────────────────────────── */
       #map-tile-toggle-btn {
-        position: absolute; bottom: 20px; right: calc(26% + 14px);
+        position: absolute; bottom: 20px; right: calc(clamp(260px, 26%, 380px) + 14px);
         width: 48px; height: 48px;
         background: var(--white); border-radius: 50%;
         box-shadow: var(--shadow-md); cursor: pointer; z-index: 50;
         border: 1.5px solid var(--gray-200);
-        transition: transform 0.18s var(--ease-out), box-shadow 0.18s, border-color 0.18s;
+        transition: transform 0.18s var(--ease-out), box-shadow 0.18s, border-color 0.18s, right 0.32s var(--ease-out);
         background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="%23b41821" viewBox="0 0 24 24"><path d="M3 6.5l6-2 6 2 6-2v13l-6 2-6-2-6 2v-13zm6 0v11l4 1.3v-11l-4-1.3zm10 0l-4 1.3v11l4-1.3v-11zm-14 0v11l4-1.3v-11l-4 1.3z"/></svg>');
         background-size: 52%; background-repeat: no-repeat; background-position: center;
       }
+      /* Panel ausgeblendet → Kartenstil-Button rückt an den rechten Rand
+         (links neben den Wieder-Einblenden-Button). */
+      #map-tile-toggle-btn.panel-hidden { right: 72px; }
       #map-tile-toggle-btn:hover { transform: scale(1.1); box-shadow: var(--shadow-lg); border-color: var(--red); }
+
+      /* ─── Steuer-Panel ein-/ausblendbar ─────────────────────────────
+         Eingeklappt gleitet das Panel rechts aus dem Bild; ein kleiner
+         runder Button unten rechts holt es zurück. */
+      #control-panel-collapse-btn {
+        position: absolute; top: 8px; right: 10px;
+        width: 26px; height: 26px; z-index: 3;
+        display: flex; align-items: center; justify-content: center;
+        border: 1px solid var(--gray-200); border-radius: 50%;
+        background: var(--white); color: var(--gray-500);
+        font-size: 14px; line-height: 1; cursor: pointer; padding: 0;
+        transition: background 0.18s, color 0.18s, transform 0.18s;
+      }
+      #control-panel-collapse-btn:hover { background: var(--red-bg); color: var(--red); border-color: var(--red-border); transform: scale(1.08); }
+      #map-control-panel {
+        transition: height 0.32s var(--ease-out),
+                    transform 0.32s var(--ease-out),
+                    opacity 0.28s var(--ease-out);
+      }
+      #map-control-panel.control-collapsed {
+        transform: translateX(calc(100% + 24px));
+        opacity: 0; pointer-events: none;
+      }
+      #control-panel-reopen-btn {
+        position: absolute; bottom: 20px; right: 14px;
+        width: 48px; height: 48px; z-index: 50;
+        background: var(--white); border-radius: 50%;
+        box-shadow: var(--shadow-md); cursor: pointer;
+        border: 1.5px solid var(--gray-200);
+        display: none; align-items: center; justify-content: center;
+        color: var(--red); font-size: 20px; line-height: 1;
+        transition: transform 0.18s var(--ease-out), box-shadow 0.18s, border-color 0.18s;
+        animation: fadeInScale 0.24s var(--ease-out);
+      }
+      #control-panel-reopen-btn.show { display: flex; }
+      #control-panel-reopen-btn:hover { transform: scale(1.1); box-shadow: var(--shadow-lg); border-color: var(--red); }
+      @keyframes fadeInScale { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
 
       #legend-toggle-btn {
         position: absolute; bottom: 20px; left: 14px;
@@ -1279,7 +1328,7 @@
       /* ─── Side-Popups ───────────────────────────────────────────── */
       .side-popup {
         position: absolute; right: 0; top: 0;
-        width: 26%; height: calc(100% - 36% - 10px); max-height: 68%;
+        width: clamp(260px, 26%, 380px); height: calc(100% - 36% - 10px); max-height: 68%;
         background: var(--white); border-left: 3px solid var(--red);
         border-top-left-radius: var(--radius-xl);
         border-bottom-left-radius: var(--radius-xl);
@@ -1464,7 +1513,7 @@
       /* ─── Control-Panel ─────────────────────────────────────────── */
       #map-control-panel {
         position: absolute; right: 0; bottom: 0;
-        width: 26%; height: 25%; max-height: 68%;
+        width: clamp(260px, 26%, 380px); height: 25%; max-height: 68%;
         overflow-y: auto;
         background: rgba(255,255,255,0.97); backdrop-filter: blur(8px);
         border-left: 1px solid var(--gray-200); border-top: 1px solid var(--gray-200);
@@ -1610,6 +1659,13 @@
       .category-toggle.active {
         background: var(--red-bg); border-color: var(--red); color: var(--red);
         font-weight: 700; box-shadow: 0 0 0 3px var(--red-shadow);
+      }
+      /* Kategorie nicht in der Erhebung enthalten → ausgegraut, nicht klickbar */
+      .category-toggle.cat-unavailable,
+      .category-toggle.cat-unavailable:hover {
+        opacity: 0.4; filter: grayscale(1); cursor: not-allowed;
+        background: var(--gray-100); border-color: var(--gray-200);
+        color: var(--gray-500); box-shadow: none; pointer-events: none;
       }
 
       /* ─── Animationen ───────────────────────────────────────────── */
@@ -2124,6 +2180,72 @@
         pointer-events: none; box-shadow: var(--shadow-sm);
         z-index: 9000; transition: opacity 0.3s ease;
       }
+
+      /* ══════════════════════════════════════════════════════════════
+         RESPONSIVE LAYER — reagiert auf die Widget-Breite (@container),
+         nicht die Fensterbreite. Basisgrößen oben nutzen clamp(); hier
+         nur strukturelle Anpassungen für schmale/breite Einbettungen.
+         ══════════════════════════════════════════════════════════════ */
+
+      /* Mittelgroß (Laptop / halbe Screens): linke Spalte kompakter, damit
+         die Karte mehr Platz behält, Bedienelemente bleiben groß genug. */
+      @container widget (max-width: 980px) {
+        .filter-container { width: clamp(248px, 36%, 330px); padding: 11px 9px; }
+        .sidebar-icon-label { font-size: 0.56rem; }
+        .sidebar-icon-glyph { font-size: 0.98rem; }
+      }
+      /* Schmal (kleine Fenster / geteilte Ansicht): Spalte weiter verkleinern,
+         Padding/Schrift reduzieren, damit nichts abgeschnitten wird. */
+      @container widget (max-width: 720px) {
+        .filter-container { width: clamp(210px, 44%, 280px); padding: 9px 7px; }
+        .section-header { font-size: 0.78rem; }
+        .category-toggle { padding: 6px 5px; font-size: 0.72rem; }
+      }
+
+      /* Popups/Panels an die tatsächliche KARTEN-Breite koppeln (Container
+         'map'), nicht an die Widget-Breite — sonst verdecken sie auf schmalen
+         Karten zu viel. cqw = % der Kartenbreite. */
+      @container map (max-width: 560px) {
+        .side-popup       { width: min(78cqw, 340px); }
+        #map-control-panel{ width: min(78cqw, 340px); }
+        #radius-slider-container { font-size: 12px; padding: 6px 11px; gap: 7px; }
+        #radius-slider { width: 84px; }
+      }
+      @container map (max-width: 380px) {
+        .side-popup        { width: 92cqw; max-height: 60%; }
+        #map-control-panel { width: 92cqw; }
+      }
+      /* Sehr niedrige Fenster: Popup + Panel dürfen sich sonst überlappen.
+         Popup etwas kürzer, Panel-Default kleiner halten. */
+      @container map (max-height: 520px) {
+        .side-popup { max-height: 58%; }
+        #map-control-panel.panel-large { height: 58%; }
+      }
+
+      /* Sehr breite Screens (4K): harte Kappung schon per clamp() oben; hier
+         nur die Info-/Doku-Spalte etwas luftiger. */
+      @container widget (min-width: 1500px) {
+        .filter-container { padding: 18px 16px; }
+      }
+
+      /* ── Bedienbarkeit / Fokus ─────────────────────────────────────
+         Sichtbarer Fokusring für Tastatur-Navigation (Maus-Klicks lösen
+         :focus-visible nicht aus → kein optisches Rauschen). */
+      .sidebar-icon:focus-visible, .category-toggle:focus-visible,
+      .panel-footer-btn:focus-visible, .triple-switch span:focus-visible,
+      .filter-container select:focus-visible, .table-export-btn:focus-visible,
+      .accordion-header:focus-visible, #map-tile-toggle-btn:focus-visible,
+      #left-pane-reopen-btn:focus-visible {
+        outline: 2px solid var(--red); outline-offset: 2px;
+      }
+      /* Mindest-Trefferflächen für Touch/kleine Screens (nur wenn Zeiger grob
+         ist, also Touch — Desktop-Maus bleibt kompakt). */
+      @media (pointer: coarse) {
+        .sidebar-icon { min-height: 46px; }
+        .category-toggle { min-height: 40px; }
+        .panel-footer-btn { min-height: 40px; }
+        .side-popup .close-btn { width: 34px; height: 34px; }
+      }
     </style>
 
     <div class="layout">
@@ -2234,6 +2356,7 @@
 
     <div id="map-tile-toggle-btn" title="Kartenstil wechseln"></div>
     <div id="map-control-panel">
+      <button id="control-panel-collapse-btn" type="button" title="Menü ausblenden" aria-label="Menü ausblenden">»</button>
       <div class="panel-card">
         <div class="panel-title">Analyse-Modus</div>
         <div class="switch-row">
@@ -2284,6 +2407,7 @@
         <button id="panel-overview-btn" class="panel-footer-btn" disabled>📋 Übersicht</button>
       </div>
     </div>
+    <div id="control-panel-reopen-btn" title="Menü einblenden" role="button" tabindex="0" aria-label="Menü einblenden">⚙</div>
   `;
 
 
@@ -2347,6 +2471,7 @@
       // UI-State
       this.currentMapMode        = 'wk';
       this.activeCategories      = new Set(CATEGORIES);
+      this._availableCategories  = new Set(CATEGORIES); // in der Erhebung vorhandene Kategorien
       this.umsatzMainMode        = 'gesamt';
       this.umsatzDarstellung     = 'abs';
       // Kennzahl im Umsatz-Modus: 'umsatz' (Standard) | 'bon' (Ø-Bon) | 'kunden'.
@@ -4352,6 +4477,16 @@
       // Punktraster in der herausgezoomten Vorschau-/Europa-Ansicht.
       this.map.on('zoomend', () => this._applyDetailVisibility());
 
+      // UX: Esc schließt ein offenes Seiten-Popup (nur wenn eines sichtbar ist,
+      // sonst kein Eingriff). Auf window gebunden, damit es auch greift, wenn
+      // der Fokus gerade auf der Karte liegt. Cleanup via AbortSignal in _on.
+      this._on(window, 'keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const open = this._shadowRoot?.querySelector(
+          '.side-popup.show, #side-popup-umsatz.show, #side-popup-overview.show');
+        if (open) { this.closeAllPopups?.(); }
+      });
+
       // Daten-Ready?
       // ACHTUNG: render()-Aufrufe MÜSSEN über _renderInProgress geschützt werden,
       // sonst kann ein paralleler set myDataSource() einen zweiten render() starten.
@@ -4409,6 +4544,21 @@
       this._on(this.$('panel-home-btn'),      'click', () => this._resetToHome());
       this._on(this.$('panel-overview-btn'),  'click', () => this.showOverviewPopup());
 
+      // Steuer-Panel ein-/ausblenden. Zustand in this._controlPanelHidden, damit
+      // er auch nach Moduswechseln erhalten bleibt.
+      const cpReopen = this.$('control-panel-reopen-btn');
+      const setPanelHidden = (hidden) => {
+        this._controlPanelHidden = hidden;
+        panel?.classList.toggle('control-collapsed', hidden);
+        cpReopen?.classList.toggle('show', hidden);
+        // Der Kartenstil-Button sitzt links neben dem Panel — wenn das Panel
+        // weg ist, rückt er an den rechten Rand, sonst schwebt er im Leeren.
+        this.$('map-tile-toggle-btn')?.classList.toggle('panel-hidden', hidden);
+      };
+      this._on(this.$('control-panel-collapse-btn'), 'click', () => setPanelHidden(true));
+      this._on(cpReopen, 'click', () => setPanelHidden(false));
+      this._on(cpReopen, 'keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPanelHidden(false); } });
+
       // Sidebar-Icon-Klicks (Phase 2): Hauptinhalt zwischen den 4 Bereichen
       // umschalten. Klick auf aktives Icon deselektiert es → Karte breit.
       // Sidebar-Click-Handler: zentral via _setupSidebarHandlers früh
@@ -4452,7 +4602,8 @@
         this.updateGeoLayer(); this.updateHeatmapLegend();
         if (this._activeFilter) {
           this.renderDataTable(this.filteredKennwerte);
-          this.showOverviewPopup();
+          // Nicht mehr das Übersichts-Popup aufreißen — nur ein bereits offenes
+          // Popup in-place aktualisieren.
           this._rerenderActivePopup();
         }
       });
@@ -4483,7 +4634,7 @@
         this.updateGeoLayer(); this.updateHeatmapLegend();
         if (this._activeFilter) {
           this.renderDataTable(this.filteredKennwerte);
-          this.showOverviewPopup();
+          // Kein automatisches Aufreißen des Übersichts-Popups mehr.
           this._rerenderActivePopup();
         }
       });
@@ -4580,7 +4731,12 @@
         this._on(toggle, 'click', () => {
           const cat = toggle.dataset.cat;
           if (!cat) return;
-          const allActive = CATEGORIES.every(c => this.activeCategories.has(c));
+          // Nicht verfügbare (ausgegraute) Kategorien ignorieren.
+          if (toggle.classList.contains('cat-unavailable')) return;
+          const avail = (this._availableCategories && this._availableCategories.size)
+            ? this._availableCategories : new Set(CATEGORIES);
+          const availList = CATEGORIES.filter(c => avail.has(c));
+          const allActive = availList.every(c => this.activeCategories.has(c));
           if (allActive) {
             this.activeCategories = new Set([cat]);
             this._shadowRoot.querySelectorAll('.category-toggle').forEach(t =>
@@ -4589,8 +4745,9 @@
             this.activeCategories.delete(cat);
             toggle.classList.remove('active');
             if (this.activeCategories.size === 0) {
-              this.activeCategories = new Set(CATEGORIES);
-              this._shadowRoot.querySelectorAll('.category-toggle').forEach(t => t.classList.add('active'));
+              this.activeCategories = new Set(avail);
+              this._shadowRoot.querySelectorAll('.category-toggle').forEach(t =>
+                t.classList.toggle('active', avail.has(t.dataset.cat)));
             }
           } else {
             this.activeCategories.add(cat);
@@ -5245,7 +5402,7 @@
           debounceTimer = null;
           this._hideRadiusPreview();
           this.applyRadiusFilter(radius);
-          if (this._activeFilter) this.showOverviewPopup();
+          if (this._activeFilter && this._activePopupType === 'overview') this.showOverviewPopup();
         }, 80);
       });
       // Bei Loslassen Preview auch wegmachen (falls noch da)
@@ -5458,9 +5615,10 @@
                : useWerbe ? 'Werbeumsatz' : 'Mitgekauft';
       const dis = (key) => !active[key] ? 'opacity:0.3;filter:grayscale(1)' : '';
 
-      // Erhebungsdaten: Ist-Umsatz, Kunden (Bons) und Ø-Bon inkl. Index.
-      const kd        = Number(values.kdErhebung)     || 0;
-      const umsatzIst = Number(values.umsatzErhebung) || 0;
+      // Erhebungsdaten: Ist-Umsatz, Kunden (Bons) und Ø-Bon — alle über die
+      // AKTIVEN Kategorien (folgen der Auswahl unten), konsistent zu Karte/Legende.
+      const kd        = this._kdActive(values);
+      const umsatzIst = this._istActive(values);
       const bon       = this._bonValue(values);
       const bonRef    = this._bonRefCache || this._computeBonReferenz();
       const umsatzIstTxt = umsatzIst > 0 ? fmtNum(umsatzIst) + ' ' + cur : '–';
@@ -6629,6 +6787,7 @@
             umsatzZusatz: 0,  raZusatz: 0,  onlineshopZusatz: 0,  pluscardZusatz: 0,
             umsatzErhebung: 0, kdErhebung: 0, auflage: 0,
             werbeverweigerer: 0, kaufkraftIdx: 0,
+            kdByCat: {}, istByCat: {},
           };
         }
         const v = aggregated[plz];
@@ -6649,6 +6808,12 @@
         // Umsatz je Herkunft ist additiv (echte Aufteilung, keine Wiederholung).
         const cat  = mapUmsatzQuelle(row['dimension_plz_quelle_0']?.id);
         if (!cat) continue; // unbekannte/aggregierte Herkunft → nicht einbuchen
+        // Bons + Ist-Umsatz JE KATEGORIE mitführen — damit Kunden/Ø-Bon der
+        // Kategorie-Auswahl unten folgen können (nicht nur PLZ-Gesamt).
+        const bons = safe(row['value_kd_erhebung_0']?.raw);
+        const ist  = safe(row['value_ums_erhebung_0']?.raw);
+        v.kdByCat[cat]  = (v.kdByCat[cat]  || 0) + bons;
+        v.istByCat[cat] = (v.istByCat[cat] || 0) + ist;
         const uGes = safe(row[F_GES]?.raw);
         const uWrb = safe(row[F_WRB]?.raw);
         const uZus = safe(row[F_ZUS]?.raw);
@@ -6747,10 +6912,27 @@
     }
 
     // ── Heatmap-Kennzahlen: Anzahl Kunden (Bons) & Ø-Bon ───────────────
-    // Anzahl Kunden (= Anzahl Bons) einer PLZ. Bei Darstellung "pro HH" durch
-    // die Haushalte geteilt.
+    // Aktive Kategorien als Array (Fallback: alle vier). Zentrale Quelle für
+    // die kategorieabhängigen Kennzahlen.
+    _activeCatList() {
+      const set = this.activeCategories;
+      if (!set || set.size === 0) return CATEGORIES.slice();
+      return CATEGORIES.filter(c => set.has(c));
+    }
+    // Bons der aktiven Kategorien (kategorieabhängig, folgt der Auswahl unten).
+    _kdActive(v) {
+      const by = v?.kdByCat; if (!by) return Number(v?.kdErhebung) || 0;
+      let s = 0; for (const c of this._activeCatList()) s += Number(by[c]) || 0;
+      return s;
+    }
+    // Ist-Umsatz der aktiven Kategorien (Zähler für den Ø-Bon).
+    _istActive(v) {
+      const by = v?.istByCat; if (!by) return Number(v?.umsatzErhebung) || 0;
+      let s = 0; for (const c of this._activeCatList()) s += Number(by[c]) || 0;
+      return s;
+    }
     _kundenValue(v) {
-      const kd = Number(v?.kdErhebung) || 0;
+      const kd = this._kdActive(v);
       if (kd <= 0) return 0;
       if (this.umsatzDarstellung === 'hh') {
         const hh = Number(v?.haushalte) || 0;
@@ -6759,26 +6941,24 @@
       return kd;
     }
 
-    // Durchschnittsbon einer PLZ = Ist-Umsatz der Erhebung / Anzahl Bons.
-    // WICHTIG (Abschnitt 6): Zähler ist der Ist-Umsatz (umsatzErhebung), NICHT
-    // der hochgerechnete Umsatz — sonst wandert der Hochrechnungsfaktor in den
-    // vermeintlichen Ø-Bon und der Wert ist kein echter Bondurchschnitt mehr.
+    // Durchschnittsbon = Ist-Umsatz / Bons — beides über die AKTIVEN Kategorien
+    // (folgt der Auswahl unten). Zähler ist der Ist-Umsatz (nicht hochgerechnet),
+    // sonst wäre es kein echter Bondurchschnitt.
     _bonValue(v) {
-      const kd  = Number(v?.kdErhebung)     || 0;
-      const ums = Number(v?.umsatzErhebung) || 0;
+      const kd  = this._kdActive(v);
+      const ums = this._istActive(v);
       if (kd < BON_MIN_KD || ums <= 0) return 0;
       return ums / kd;
     }
 
-    // Gewichteter Referenz-Ø-Bon (Index 100 = Durchschnitt): Σ Umsatz / Σ Kunden
-    // über alle PLZ mit kd >= BON_MIN_KD — NICHT der Mittelwert der PLZ-Bons
-    // (sonst zählt eine PLZ mit 5 Bons so viel wie eine mit 5.000).
+    // Gewichteter Referenz-Ø-Bon (Index 100): Σ Ist / Σ Bons der aktiven
+    // Kategorien über alle PLZ mit genügend Bons.
     _computeBonReferenz() {
       let ums = 0, kd = 0;
       for (const v of Object.values(this.filteredPLZWerte || {})) {
-        const k = Number(v?.kdErhebung) || 0;
+        const k = this._kdActive(v);
         if (k < BON_MIN_KD) continue;
-        ums += Number(v?.umsatzErhebung) || 0;
+        ums += this._istActive(v);
         kd  += k;
       }
       this._bonRefCache = kd > 0 ? ums / kd : 0;
@@ -6964,6 +7144,9 @@
           // bisher nur in filteredKennwerte — hier durchreichen.
           kdErhebung:     old.kdErhebung     ?? 0,
           umsatzErhebung: old.umsatzErhebung ?? 0,
+          // Per-Kategorie-Bons/-Ist für kategorieabhängige Kunden/Ø-Bon.
+          kdByCat:        old.kdByCat        ?? {},
+          istByCat:       old.istByCat       ?? {},
         };
       }
 
@@ -7064,7 +7247,9 @@
       this.updateGeoLayer();
       this.updateHeatmapLegend();
       this.renderDataTable(this.filteredKennwerte);
-      if (this._activeFilter) this.showOverviewPopup();
+      // Offene Popups aktualisiert _rerenderActivePopup() (wird direkt nach
+      // _refreshAll in refreshMapAndPopup aufgerufen) — hier NICHT das
+      // Übersichts-Popup aufreißen, sonst geht es bei jedem Button-Klick auf.
     }
 
     prepareMapData(filteredData) {
@@ -7078,15 +7263,23 @@
       const NL  = this.Niederlassung;
       const nlK = this.nlKoordinaten;
       const hzF = this.hzFlags;
-      // Führende Anzeige-Währung (LOC_CURRCY) aus den Daten ableiten: häufigster
-      // Code über alle Zeilen. Annahme: innerhalb einer Erhebung/eines Landes
-      // einheitlich. Fallback '€'.
-      const currTally = {};
+      // Führende Anzeige-Währung aus dem Land ableiten (LOC_CURRCY ist kein
+      // Merkmal). Dominantes Land der Erhebung (cross-border-fest) → Währung.
+      const landTally = {};
+      const availCats = new Set();
       for (let i = 0, len = filteredData.length; i < len; i++) {
         const row = filteredData[i];
         const __land = this._landOfRow(row); const __bare = this._normalizePLZ(row['dimension_plz_0']?.id, __land); const plz = (__bare && !this._isAggregatePlz(__bare)) ? this._plzKey(__land, __bare) : null;
-        const cc = row['dimension_currency_0']?.id?.trim();
-        if (cc && !isNull(cc)) currTally[cc] = (currTally[cc] || 0) + 1;
+        landTally[__land] = (landTally[__land] || 0) + 1;
+        // Verfügbare Kategorien: eine Umsatzherkunft gilt als vorhanden, sobald
+        // sie mit Bons ODER Umsatz auftaucht.
+        const rc = mapUmsatzQuelle(row['dimension_plz_quelle_0']?.id);
+        if (rc && !availCats.has(rc)) {
+          const anyData = (Number(row['value_kd_erhebung_0']?.raw) || 0) !== 0
+                       || (Number(row['value_ums_erhebung_0']?.raw) || 0) !== 0
+                       || (Number(row['value_hr_n_umsatz_0']?.raw) || 0) !== 0;
+          if (anyData) availCats.add(rc);
+        }
         const nlKey = row['dimension_niederlassung_0']?.id?.trim();
         const hz = row['dimension_hzflag_0']?.id?.trim() === 'X';
         if (nlKey) {
@@ -7110,12 +7303,33 @@
           else if (hzF[plz] === undefined) hzF[plz] = false;
         }
       }
-      // Dominante Währung bestimmen (häufigster Code).
-      let domCurr = null, domN = -1;
-      for (const [code, n] of Object.entries(currTally)) {
-        if (n > domN) { domN = n; domCurr = code; }
+      // Dominantes Land bestimmen → Währung.
+      let domLand = null, domN = -1;
+      for (const [land, n] of Object.entries(landTally)) {
+        if (n > domN) { domN = n; domLand = land; }
       }
-      this._displayCurrency = domCurr || 'EUR';
+      this._displayCurrency = LAND_CURRENCY[domLand] || 'EUR';
+      // Verfügbare Kategorien merken + Toggles ausgrauen. Fallback: alle vier,
+      // falls die Erhebung (unerwartet) keine erkennbare Herkunft liefert.
+      this._availableCategories = availCats.size ? availCats : new Set(CATEGORIES);
+      this._applyCategoryAvailability();
+    }
+
+    // Graut Kategorie-Toggles aus, die in der aktuellen Erhebung nicht
+    // vorkommen, und entfernt sie aus der aktiven Auswahl. Ist danach keine
+    // Kategorie mehr aktiv, werden alle verfügbaren aktiviert.
+    _applyCategoryAvailability() {
+      const avail = (this._availableCategories && this._availableCategories.size)
+        ? this._availableCategories : new Set(CATEGORIES);
+      if (!this.activeCategories) this.activeCategories = new Set(avail);
+      for (const c of [...this.activeCategories]) if (!avail.has(c)) this.activeCategories.delete(c);
+      if (this.activeCategories.size === 0) this.activeCategories = new Set(avail);
+      this._shadowRoot?.querySelectorAll('.category-toggle').forEach(t => {
+        const cat = t.dataset.cat;
+        const ok  = avail.has(cat);
+        t.classList.toggle('cat-unavailable', !ok);
+        t.classList.toggle('active', ok && this.activeCategories.has(cat));
+      });
     }
 
     // Aktuelles Währungssymbol (LOC_CURRCY ist führend). Fallback '€'.
@@ -8567,7 +8781,11 @@
       this._setLeftPaneVisible(true);
       this._setFilterFieldsCollapsed(false);
       this.$('heatmap-legend')?.classList.add('hidden');
-      this.$('map-control-panel')?.classList.remove('panel-large', 'panel-medium');
+      this.$('map-control-panel')?.classList.remove('panel-large', 'panel-medium', 'control-collapsed');
+      // Panel wieder einblenden + Reopen-Chip/Buttons zurücksetzen.
+      this._controlPanelHidden = false;
+      this.$('control-panel-reopen-btn')?.classList.remove('show');
+      this.$('map-tile-toggle-btn')?.classList.remove('panel-hidden');
       // Doppelbestreuungs-Bar im Hauptmenü wieder aufklappen + Default "Ohne"
       this.$('doppel-toggle-bar')?.classList.remove('collapsed');
       // Bug DB6 Fix: Auswahl-State + UI auf Default "Ohne" zurücksetzen,
@@ -8600,7 +8818,8 @@
       // Click-Handler bleiben gebunden – _handlePolygonClick prüft _activeFilter
 
       this.activeCategories = new Set(CATEGORIES);
-      this._shadowRoot.querySelectorAll('.category-toggle').forEach(t => t.classList.add('active'));
+      this._availableCategories = new Set(CATEGORIES);
+      this._shadowRoot.querySelectorAll('.category-toggle').forEach(t => { t.classList.remove('cat-unavailable'); t.classList.add('active'); });
       this.currentMapMode = 'wk'; 
       this.umsatzMainMode = 'gesamt'; this.umsatzDarstellung = 'abs';
       // Bug WA10 Fix: Werbe/Mitgekauft-States sowohl logisch als auch UI-mäßig
