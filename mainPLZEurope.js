@@ -90,6 +90,140 @@
   // (BERHEBEHT; GF-Bereiche nur in DE), ist die Währung fest bestimmbar.
   const LAND_CURRENCY = { DE: 'EUR', NL: 'EUR', AT: 'EUR', ES: 'EUR', CH: 'CHF', CZ: 'CZK' };
 
+  // ══════════════════════════════════════════════════════════════════
+  //  i18n — Deutsch / Englisch
+  //  Zentrale Übersetzungstabelle. Statische UI-Labels werden über
+  //  data-i18n-Attribute im Template gesetzt (_applyI18n), dynamische
+  //  Strings über t(key). Englische Fachbegriffe sind ein Vorschlag und
+  //  sollten fachlich gegengelesen werden (siehe Chat).
+  //  Batch 1: operative UI. Doku-Prosa bleibt vorerst Deutsch (Batch 2).
+  // ══════════════════════════════════════════════════════════════════
+  const LOCALE_BY_LANG = { de: 'de-DE', en: 'en-GB' };
+  let _activeLocale = 'de-DE';   // wird bei Sprachwechsel gesetzt (setLang)
+
+  const I18N = {
+    de: {
+      // Filter / Einstieg
+      'filter.erhebungId': 'ErhebungsID',
+      'filter.jahr': 'Jahr',
+      'filter.nummer': 'Erhebungsnummer',
+      'filter.show': 'Anzeigen',
+      'filter.hide': 'Ausblenden',
+      'filter.change': '▾ Ändern',
+      'filter.ph.erhebung': '– ErhebungsID wählen –',
+      'filter.ph.jahr': '– Jahr wählen –',
+      'filter.ph.nummer': '– Nummer wählen –',
+      'filter.title.hideFields': 'Filter ausblenden',
+      'filter.title.showFields': 'Filter wieder einblenden',
+      // Tabs
+      'tab.docs': 'Anleitung', 'tab.plz': 'PLZ', 'tab.overview': 'Übersicht',
+      'tab.analysis': 'Analyse', 'tab.hide': 'Ausblenden',
+      'tab.title.docs': 'Anleitung', 'tab.title.plz': 'PLZ-Tabelle',
+      'tab.title.overview': 'Erhebungsübersicht', 'tab.title.analysis': 'Erweiterte Analyse',
+      'tab.title.hide': 'Menü ausblenden',
+      // Karte / Steuer-Panel
+      'map.radius': 'Radius', 'map.title.legend': 'Legende',
+      'map.title.tileStyle': 'Kartenstil wechseln',
+      'map.title.reopenMenu': 'Menü einblenden', 'map.title.hideMenu': 'Menü ausblenden',
+      'panel.analyseMode': 'Analyse-Modus',
+      'panel.wk': '📊 WK', 'panel.umsatz': '💶 Umsatz',
+      'panel.doppelbestreuung': 'Doppelbestreuung', 'panel.competitors': '🔨 Mitbewerber',
+      'panel.bestreuung': '📍 Bestreuung',
+      'panel.umsatzSettings': 'Umsatz-Einstellungen', 'panel.umsatzType': 'Umsatztyp',
+      'panel.type.umsatz': 'Umsatz', 'panel.type.werbeumsatz': 'Werbeumsatz',
+      'panel.chk.werbeumsatz': 'Werbeumsatz', 'panel.chk.mitgekauft': 'Mitgekauft',
+      'panel.kennzahl': 'Kennzahl', 'panel.kz.umsatz': 'Umsatz', 'panel.kz.bon': 'Ø-Bon', 'panel.kz.kunden': 'Kunden',
+      'panel.darstellung': 'Darstellung', 'panel.da.abs': 'Absolut', 'panel.da.hh': 'pro HH', 'panel.da.werbeanteil': 'Werbeanteil',
+      'panel.home': '← Hauptmenü', 'panel.overview': '📋 Übersicht',
+      'cat.stationaer': '🏬 Stationär', 'cat.pluscard': '💳 Pluscard', 'cat.ra': '📦 R&A', 'cat.online': '🛒 KUBE OS',
+      // Legende
+      'legend.umsatz': 'Umsatz', 'legend.bon': 'Ø-Bon',
+      'legend.kunden': 'Anzahl Kunden (Bons)', 'legend.kundenHH': 'Kunden pro Haushalt',
+      'legend.avgIsIndex': 'Ø {v} = Index 100', 'legend.tooFewBons': '< {n} Bons', 'legend.tooFewData': '(zu wenig Daten)',
+      // Tabelle
+      'table.plz': 'PLZ', 'table.gemeinde': 'Gemeinde', 'table.status': 'Status',
+      'table.umsatz': 'Umsatz', 'table.anteil': 'Anteil', 'table.wk': 'WK',
+      'table.rows': 'Zeilen', 'table.row': 'Zeile', 'table.exportCsv': '⤓ CSV',
+      'table.title.exportCsv': 'Tabelle als CSV exportieren',
+      // CSV
+      'csv.plz': 'PLZ', 'csv.gemeinde': 'Gemeinde', 'csv.status': 'Status',
+      'csv.umsatzHoch': 'Umsatz hochgerechnet', 'csv.umsatzAnteil': 'Umsatz-Anteil (%)',
+      'csv.wk': 'WK (%)', 'csv.kunden': 'Kunden (Bons)', 'csv.bon': 'Ø-Bon',
+      'csv.status.critical': 'kritisch', 'csv.status.hz': 'HZ',
+      // Streuverlust / Preview
+      'foot.streuverlust': 'Streuverlust', 'foot.total': 'Ges.',
+      'preview.prefix': 'Vorschau',
+      // Popup — gemeinsame Feld-/Abschnittslabels
+      'pp.strukturdaten': 'Strukturdaten', 'pp.erhebungsdaten': 'Erhebungsdaten',
+      'pp.nachKategorien': 'Nach Kategorien',
+      'pp.haushalte': 'Haushalte', 'pp.werbeverweigerer': 'Werbeverweigerer', 'pp.kaufkraft': 'Kaufkraft-Index',
+      'pp.umsatzIst': 'Umsatz (Ist)', 'pp.kunden': 'Kunden (Bons)', 'pp.bon': 'Ø-Bon',
+      'pp.gesamtumsatz': 'Gesamtumsatz', 'pp.tooFewBons': '< {n} Bons',
+      'pp.idx': 'Idx',
+    },
+    en: {
+      'filter.erhebungId': 'Survey ID',
+      'filter.jahr': 'Year',
+      'filter.nummer': 'Survey number',
+      'filter.show': 'Show',
+      'filter.hide': 'Hide',
+      'filter.change': '▾ Change',
+      'filter.ph.erhebung': '– select survey ID –',
+      'filter.ph.jahr': '– select year –',
+      'filter.ph.nummer': '– select number –',
+      'filter.title.hideFields': 'Hide filters',
+      'filter.title.showFields': 'Show filters again',
+      'tab.docs': 'Guide', 'tab.plz': 'Postcodes', 'tab.overview': 'Overview',
+      'tab.analysis': 'Analysis', 'tab.hide': 'Hide',
+      'tab.title.docs': 'Guide', 'tab.title.plz': 'Postcode table',
+      'tab.title.overview': 'Survey overview', 'tab.title.analysis': 'Advanced analysis',
+      'tab.title.hide': 'Hide panel',
+      'map.radius': 'Radius', 'map.title.legend': 'Legend',
+      'map.title.tileStyle': 'Change map style',
+      'map.title.reopenMenu': 'Show menu', 'map.title.hideMenu': 'Hide menu',
+      'panel.analyseMode': 'Analysis mode',
+      'panel.wk': '📊 Ad cost', 'panel.umsatz': '💶 Revenue',
+      'panel.doppelbestreuung': 'Overlap', 'panel.competitors': '🔨 Competitors',
+      'panel.bestreuung': '📍 Coverage',
+      'panel.umsatzSettings': 'Revenue settings', 'panel.umsatzType': 'Revenue type',
+      'panel.type.umsatz': 'Revenue', 'panel.type.werbeumsatz': 'Ad revenue',
+      'panel.chk.werbeumsatz': 'Ad revenue', 'panel.chk.mitgekauft': 'Add-on',
+      'panel.kennzahl': 'Metric', 'panel.kz.umsatz': 'Revenue', 'panel.kz.bon': 'Avg. basket', 'panel.kz.kunden': 'Customers',
+      'panel.darstellung': 'Display', 'panel.da.abs': 'Absolute', 'panel.da.hh': 'per HH', 'panel.da.werbeanteil': 'Ad share',
+      'panel.home': '← Main menu', 'panel.overview': '📋 Overview',
+      'cat.stationaer': '🏬 In-store', 'cat.pluscard': '💳 Pluscard', 'cat.ra': '📦 C&C', 'cat.online': '🛒 KUBE OS',
+      'legend.umsatz': 'Revenue', 'legend.bon': 'Avg. basket',
+      'legend.kunden': 'Customers (receipts)', 'legend.kundenHH': 'Customers per household',
+      'legend.avgIsIndex': 'Avg {v} = index 100', 'legend.tooFewBons': '< {n} receipts', 'legend.tooFewData': '(too little data)',
+      'table.plz': 'Postcode', 'table.gemeinde': 'Municipality', 'table.status': 'Status',
+      'table.umsatz': 'Revenue', 'table.anteil': 'Share', 'table.wk': 'Ad %',
+      'table.rows': 'rows', 'table.row': 'row', 'table.exportCsv': '⤓ CSV',
+      'table.title.exportCsv': 'Export table as CSV',
+      'csv.plz': 'Postcode', 'csv.gemeinde': 'Municipality', 'csv.status': 'Status',
+      'csv.umsatzHoch': 'Revenue extrapolated', 'csv.umsatzAnteil': 'Revenue share (%)',
+      'csv.wk': 'Ad cost (%)', 'csv.kunden': 'Customers (receipts)', 'csv.bon': 'Avg. basket',
+      'csv.status.critical': 'critical', 'csv.status.hz': 'main coverage',
+      'foot.streuverlust': 'Wastage', 'foot.total': 'Total',
+      'preview.prefix': 'Preview',
+      'pp.strukturdaten': 'Structural data', 'pp.erhebungsdaten': 'Survey data',
+      'pp.nachKategorien': 'By category',
+      'pp.haushalte': 'Households', 'pp.werbeverweigerer': 'Advertising opt-outs', 'pp.kaufkraft': 'Purchasing-power index',
+      'pp.umsatzIst': 'Revenue (actual)', 'pp.kunden': 'Customers (receipts)', 'pp.bon': 'Avg. basket',
+      'pp.gesamtumsatz': 'Total revenue', 'pp.tooFewBons': '< {n} receipts',
+      'pp.idx': 'idx',
+    },
+  };
+
+  // Übersetzt einen Key für eine Sprache, mit Platzhalter-Ersetzung ({v}, {n}…).
+  // Fallback: DE → Key selbst, damit nie ein leeres Label entsteht.
+  const translate = (lang, key, vars) => {
+    let s = (I18N[lang] && I18N[lang][key]) ?? (I18N.de[key]) ?? key;
+    if (vars) for (const k in vars) s = s.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
+    return s;
+  };
+  // Locale-abhängige Zahlenformatierung (nutzt die aktive Sprache).
+  const nfmt = (x, opts) => Number(x || 0).toLocaleString(_activeLocale, opts);
+
   const PLZ_FILTER_KEYS    = ['0POSTALCODE', 'dimension_plz_0', 'dimension_plz'];
   // BERHEBEHT löst BGFBNR ab (kann ein Land ODER — nur in DE — ein GF-Bereich sein).
   const ERH_FILTER_KEYS    = ['BERHEBEHT', 'dimension_erhebung_0', 'dimension_erhebung'];
@@ -122,8 +256,8 @@
       .replace(/'/g, '&#39;');
   };
 
-  const fmtNum = (x) => Math.round(Number(x || 0)).toLocaleString('de-DE');
-  const fmtDec = (x) => Number(x || 0).toFixed(2);
+  const fmtNum = (x) => Math.round(Number(x || 0)).toLocaleString(_activeLocale);
+  const fmtDec = (x) => Number(x || 0).toLocaleString(_activeLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // ── Karten-Markierung (Highlight einer angeklickten/gewählten PLZ) ────
   // Schwarze Linie mit weißem Halo (zweiter, darunterliegender Layer).
@@ -215,6 +349,25 @@
         position: relative; z-index: 2;
         /* Weicher Schatten als Separator zur Karte — kein harter Border. */
         box-shadow: 4px 0 16px rgba(0,0,0,0.05), 1px 0 0 rgba(0,0,0,0.03);
+      }
+
+      /* ─── Sprachumschalter (DE/EN) ──────────────────────────────── */
+      .lang-switch {
+        display: flex; gap: 4px; align-self: flex-end;
+        margin-bottom: 8px; flex-shrink: 0;
+        background: var(--gray-100); border-radius: 100px; padding: 3px;
+      }
+      .lang-btn {
+        border: none; background: transparent; cursor: pointer;
+        font-family: var(--font); font-size: 0.72rem; font-weight: 700;
+        color: var(--gray-500); letter-spacing: 0.04em;
+        padding: 4px 11px; border-radius: 100px; line-height: 1;
+        transition: background 0.18s var(--ease-out), color 0.18s var(--ease-out);
+      }
+      .lang-btn:hover:not(.active) { color: var(--gray-700); }
+      .lang-btn.active {
+        background: var(--white); color: var(--red);
+        box-shadow: var(--shadow-xs);
       }
       .filter-container::before {
         content: ''; display: block; height: 3px;
@@ -2251,28 +2404,34 @@
     <div class="layout">
       <div class="filter-container">
 
+        <!-- Sprachumschalter (Eingang): am Start sichtbar, schaltet DE/EN live. -->
+        <div id="lang-switch" class="lang-switch" role="group" aria-label="Sprache / Language">
+          <button type="button" class="lang-btn active" data-lang="de" title="Deutsch">DE</button>
+          <button type="button" class="lang-btn" data-lang="en" title="English">EN</button>
+        </div>
+
         <!-- Info-Bar ganz oben: zeigt aktuelle Erhebungs-Auswahl wenn die
              Filter-Maske eingeklappt ist. Sonst versteckt. -->
         <div id="filter-info-bar" class="hidden">
           <span class="filter-info-icon">📍</span>
           <span class="filter-info-text" id="filter-info-text">—</span>
           <span class="filter-info-badge" id="filter-info-badge"></span>
-          <button type="button" id="filter-info-expand" title="Filter wieder einblenden">▾ Ändern</button>
+          <button type="button" id="filter-info-expand" data-i18n="filter.change" data-i18n-title="filter.title.showFields" title="Filter wieder einblenden">▾ Ändern</button>
         </div>
 
         <!-- Filter-Felder. Zusammen ein-/ausklappbar via #filter-fields-toggle. -->
         <div class="filter-fields" id="filter-fields">
-          <label for="erhebung-select">ErhebungsID</label>
+          <label for="erhebung-select" data-i18n="filter.erhebungId">ErhebungsID</label>
           <select id="erhebung-select"></select>
-          <label for="jahr-select">Jahr</label>
+          <label for="jahr-select" data-i18n="filter.jahr">Jahr</label>
           <select id="jahr-select" disabled></select>
-          <label for="nummer-select">Erhebungsnummer</label>
+          <label for="nummer-select" data-i18n="filter.nummer">Erhebungsnummer</label>
           <select id="nummer-select" disabled></select>
           <div class="filter-button-row">
-            <button id="filter-button">Anzeigen</button>
+            <button id="filter-button" data-i18n="filter.show">Anzeigen</button>
             <!-- Filter-Maske einklappen. Erscheint nur wenn eine Erhebung
                  geladen ist (sonst nichts zu verbergen). -->
-            <button id="filter-fields-toggle" type="button" title="Filter ausblenden"><span class="filter-toggle-arrow">▴</span> Ausblenden</button>
+            <button id="filter-fields-toggle" type="button" data-i18n-title="filter.title.hideFields" title="Filter ausblenden"><span class="filter-toggle-arrow">▴</span> <span data-i18n="filter.hide">Ausblenden</span></button>
           </div>
         </div>
 
@@ -2298,32 +2457,32 @@
           <!-- Tab-Bar: horizontale Reiter unten. Genau ein View muss aktiv sein
                (außer wenn ganze Spalte ausgeblendet ist via 👁 Tab). -->
           <div class="sidebar-rail" id="sidebar-rail">
-            <button class="sidebar-icon" data-view="docs" title="Anleitung" type="button">
+            <button class="sidebar-icon" data-view="docs" data-i18n-title="tab.title.docs" title="Anleitung" type="button">
               <span class="sidebar-icon-glyph">📖</span>
-              <span class="sidebar-icon-label">Anleitung</span>
+              <span class="sidebar-icon-label" data-i18n="tab.docs">Anleitung</span>
               <span class="sidebar-icon-badge" id="sidebar-badge-docs"></span>
             </button>
-            <button class="sidebar-icon" data-view="plz" title="PLZ-Tabelle" type="button" disabled>
+            <button class="sidebar-icon" data-view="plz" data-i18n-title="tab.title.plz" title="PLZ-Tabelle" type="button" disabled>
               <span class="sidebar-icon-glyph">📋</span>
-              <span class="sidebar-icon-label">PLZ</span>
+              <span class="sidebar-icon-label" data-i18n="tab.plz">PLZ</span>
               <span class="sidebar-icon-badge" id="sidebar-badge-plz"></span>
             </button>
-            <button class="sidebar-icon" data-view="overview" title="Erhebungsübersicht" type="button" disabled>
+            <button class="sidebar-icon" data-view="overview" data-i18n-title="tab.title.overview" title="Erhebungsübersicht" type="button" disabled>
               <span class="sidebar-icon-glyph">📊</span>
-              <span class="sidebar-icon-label">Übersicht</span>
+              <span class="sidebar-icon-label" data-i18n="tab.overview">Übersicht</span>
               <span class="sidebar-icon-badge" id="sidebar-badge-overview"></span>
             </button>
-            <button class="sidebar-icon" data-view="analysis" title="Erweiterte Analyse" type="button" disabled>
+            <button class="sidebar-icon" data-view="analysis" data-i18n-title="tab.title.analysis" title="Erweiterte Analyse" type="button" disabled>
               <span class="sidebar-icon-glyph">🔬</span>
-              <span class="sidebar-icon-label">Analyse</span>
+              <span class="sidebar-icon-label" data-i18n="tab.analysis">Analyse</span>
               <span class="sidebar-icon-badge" id="sidebar-badge-analysis"></span>
             </button>
             <!-- Spezial-Tab: blendet die komplette linke Spalte aus.
                  Pfeil ◀ zeigt die Richtung an (Spalte verschwindet nach links). -->
             <button class="sidebar-icon sidebar-icon-hide" data-action="hide-pane"
-                    title="Menü ausblenden" type="button">
+                    data-i18n-title="tab.title.hide" title="Menü ausblenden" type="button">
               <span class="sidebar-icon-glyph">◀</span>
-              <span class="sidebar-icon-label">Ausblenden</span>
+              <span class="sidebar-icon-label" data-i18n="tab.hide">Ausblenden</span>
             </button>
           </div>
         </div>
@@ -2334,11 +2493,11 @@
         <div id="map-preview-overlay" style="position:absolute;inset:0;z-index:400;pointer-events:none;overflow:hidden;"></div>
         <div id="loading-spinner" class="spinner hidden"></div>
         <div id="radius-slider-container">
-          <label>Radius: <span id="radius-value">40</span> km</label>
+          <label><span data-i18n="map.radius">Radius</span>: <span id="radius-value">40</span> km</label>
           <input type="range" id="radius-slider" min="10" max="100" value="40" step="5">
         </div>
         <div id="map"></div>
-        <div id="legend-toggle-btn" title="Legende"></div>
+        <div id="legend-toggle-btn" data-i18n-title="map.title.legend" title="Legende"></div>
         <div id="heatmap-legend" class="heatmap-legend hidden"></div>
 
         <!-- Reopen-Button: nur sichtbar wenn die ganze linke Spalte
@@ -2354,60 +2513,60 @@
       <div id="side-popup-overview" class="side-popup hidden"></div>
     </div>
 
-    <div id="map-tile-toggle-btn" title="Kartenstil wechseln"></div>
+    <div id="map-tile-toggle-btn" data-i18n-title="map.title.tileStyle" title="Kartenstil wechseln"></div>
     <div id="map-control-panel">
-      <button id="control-panel-collapse-btn" type="button" title="Menü ausblenden" aria-label="Menü ausblenden">»</button>
+      <button id="control-panel-collapse-btn" type="button" data-i18n-title="map.title.hideMenu" title="Menü ausblenden" aria-label="Menü ausblenden">»</button>
       <div class="panel-card">
-        <div class="panel-title">Analyse-Modus</div>
+        <div class="panel-title" data-i18n="panel.analyseMode">Analyse-Modus</div>
         <div class="switch-row">
-          <button id="btn-wk"     class="switch-btn active">📊 WK</button>
-          <button id="btn-umsatz" class="switch-btn">💶 Umsatz</button>
+          <button id="btn-wk"     class="switch-btn active" data-i18n="panel.wk">📊 WK</button>
+          <button id="btn-umsatz" class="switch-btn" data-i18n="panel.umsatz">💶 Umsatz</button>
         </div>
         <div id="wk-extra" class="option-row">
-          <label><input type="checkbox" id="chk-doppelbestreuung"> Doppelbestreuung</label>
-          <label><input type="checkbox" id="chk-competitors-wk"> 🔨 Mitbewerber</label>
+          <label><input type="checkbox" id="chk-doppelbestreuung"> <span data-i18n="panel.doppelbestreuung">Doppelbestreuung</span></label>
+          <label><input type="checkbox" id="chk-competitors-wk"> <span data-i18n="panel.competitors">🔨 Mitbewerber</span></label>
         </div>
         <div id="umsatz-options-row" class="option-row hidden">
-          <label><input type="checkbox" id="chk-bestreuung"> 📍 Bestreuung</label>
-          <label><input type="checkbox" id="chk-competitors-umsatz"> 🔨 Mitbewerber</label>
+          <label><input type="checkbox" id="chk-bestreuung"> <span data-i18n="panel.bestreuung">📍 Bestreuung</span></label>
+          <label><input type="checkbox" id="chk-competitors-umsatz"> <span data-i18n="panel.competitors">🔨 Mitbewerber</span></label>
         </div>
       </div>
       <div id="umsatz-panel" class="panel-card hidden">
-        <div class="panel-title">Umsatz-Einstellungen</div>
-        <div class="switch-label">Umsatztyp</div>
+        <div class="panel-title" data-i18n="panel.umsatzSettings">Umsatz-Einstellungen</div>
+        <div class="switch-label" data-i18n="panel.umsatzType">Umsatztyp</div>
         <div id="umsatz-type-switch" class="compact-switch active-left">
-          <span class="mode-left">Umsatz</span>
-          <span class="mode-right">Werbeumsatz</span>
+          <span class="mode-left" data-i18n="panel.type.umsatz">Umsatz</span>
+          <span class="mode-right" data-i18n="panel.type.werbeumsatz">Werbeumsatz</span>
         </div>
         <div id="werbe-options-row" class="option-row hidden">
-          <label class="big-check"><input type="checkbox" id="chk-werbeumsatz" checked> Werbeumsatz</label>
-          <label class="big-check"><input type="checkbox" id="chk-mitgekauft"> Mitgekauft</label>
+          <label class="big-check"><input type="checkbox" id="chk-werbeumsatz" checked> <span data-i18n="panel.chk.werbeumsatz">Werbeumsatz</span></label>
+          <label class="big-check"><input type="checkbox" id="chk-mitgekauft"> <span data-i18n="panel.chk.mitgekauft">Mitgekauft</span></label>
         </div>
-        <div class="switch-label">Kennzahl</div>
+        <div class="switch-label" data-i18n="panel.kennzahl">Kennzahl</div>
         <div id="umsatz-kennzahl-switch" class="triple-switch">
-          <span class="mode-umsatz active" data-kennzahl="umsatz">Umsatz</span>
-          <span class="mode-bon" data-kennzahl="bon">Ø-Bon</span>
-          <span class="mode-kunden" data-kennzahl="kunden">Kunden</span>
+          <span class="mode-umsatz active" data-kennzahl="umsatz" data-i18n="panel.kz.umsatz">Umsatz</span>
+          <span class="mode-bon" data-kennzahl="bon" data-i18n="panel.kz.bon">Ø-Bon</span>
+          <span class="mode-kunden" data-kennzahl="kunden" data-i18n="panel.kz.kunden">Kunden</span>
         </div>
-        <div class="switch-label">Darstellung</div>
+        <div class="switch-label" data-i18n="panel.darstellung">Darstellung</div>
         <div id="umsatz-analysis-switch" class="triple-switch">
-          <span class="mode-abs active">Absolut</span>
-          <span class="mode-hh">pro HH</span>
-          <span class="mode-werbeanteil disabled">Werbeanteil</span>
+          <span class="mode-abs active" data-i18n="panel.da.abs">Absolut</span>
+          <span class="mode-hh" data-i18n="panel.da.hh">pro HH</span>
+          <span class="mode-werbeanteil disabled" data-i18n="panel.da.werbeanteil">Werbeanteil</span>
         </div>
         <div class="category-grid">
-          <div class="category-toggle active" data-cat="stationaer">🏬 Stationär</div>
-          <div class="category-toggle active" data-cat="pluscard">💳 Pluscard</div>
-          <div class="category-toggle active" data-cat="ra">📦 R&amp;A</div>
-          <div class="category-toggle active" data-cat="online">🛒 KUBE OS</div>
+          <div class="category-toggle active" data-cat="stationaer" data-i18n="cat.stationaer">🏬 Stationär</div>
+          <div class="category-toggle active" data-cat="pluscard" data-i18n="cat.pluscard">💳 Pluscard</div>
+          <div class="category-toggle active" data-cat="ra" data-i18n="cat.ra">📦 R&amp;A</div>
+          <div class="category-toggle active" data-cat="online" data-i18n="cat.online">🛒 KUBE OS</div>
         </div>
       </div>
       <div id="panel-footer">
-        <button id="panel-home-btn"     class="panel-footer-btn" disabled>← Hauptmenü</button>
-        <button id="panel-overview-btn" class="panel-footer-btn" disabled>📋 Übersicht</button>
+        <button id="panel-home-btn"     class="panel-footer-btn" disabled data-i18n="panel.home">← Hauptmenü</button>
+        <button id="panel-overview-btn" class="panel-footer-btn" disabled data-i18n="panel.overview">📋 Übersicht</button>
       </div>
     </div>
-    <div id="control-panel-reopen-btn" title="Menü einblenden" role="button" tabindex="0" aria-label="Menü einblenden">⚙</div>
+    <div id="control-panel-reopen-btn" data-i18n-title="map.title.reopenMenu" title="Menü einblenden" role="button" tabindex="0" aria-label="Menü einblenden">⚙</div>
   `;
 
 
@@ -2497,6 +2656,7 @@
       this._haloLayer            = null;   // weißer Halo-Layer unter dem Highlight
       this._bonRefCache          = 0;      // gewichteter Referenz-Ø-Bon (Index 100)
       this._displayCurrency      = 'EUR';  // führende Anzeige-Währung (LOC_CURRCY)
+      this.lang                  = 'de';    // aktive Sprache (de|en); via setLang gesetzt
       this.filteredData          = null;
       this.filteredKennwerte     = {};
       this.filteredPLZWerte      = {};
@@ -2543,6 +2703,11 @@
 
     // ── Lifecycle ──────────────────────────────────────────────────────
     connectedCallback() {
+      // SAC-Property "language" (falls vorab gesetzt) übernehmen — der
+      // eigentliche Apply passiert im Setup (_wireControlPanel) bzw. via setLang.
+      if ((this.language === 'en' || this.language === 'de') && this.language !== this.lang) {
+        this.lang = this.language;
+      }
       // Re-Connect-fest: nach disconnect ist der AbortController aborted und alle
       // weiteren _on()-Calls würden ins Leere laufen. Bei jedem connect frisch.
       if (this._signal?.aborted) {
@@ -2796,6 +2961,14 @@
       } else {
         this._updateLoaderPhase(2, 'Karte wird initialisiert…');
         this.initializeMapBase();
+      }
+    }
+
+    // SAC ruft dies bei Property-Änderungen (z.B. Sprache aus dem Builder-Panel).
+    onCustomWidgetAfterUpdate(changed) {
+      if (changed && Object.prototype.hasOwnProperty.call(changed, 'language')) {
+        const l = changed.language;
+        if ((l === 'en' || l === 'de') && l !== this.lang) this.setLang(l);
       }
     }
 
@@ -4045,10 +4218,10 @@
         }
       }
       box.innerHTML =
-        `<span><strong>Streuverlust:</strong> ${fmtNum(this.streuverlust.umsatz)} ${cur}
+        `<span><strong>${this.t('foot.streuverlust')}:</strong> ${fmtNum(this.streuverlust.umsatz)} ${cur}
           &nbsp;·&nbsp; ${(this.streuverlust.anteil * 100).toFixed(1)} %</span>
          <span style="font-weight:700;color:var(--red);white-space:nowrap">
-           Ges.: ${fmtNum(totalInRadius)} ${cur}
+           ${this.t('foot.total')}: ${fmtNum(totalInRadius)} ${cur}
          </span>`;
     }
 
@@ -4156,12 +4329,12 @@
       table.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;';
 
       const isUmsatzMode = this.currentMapMode === 'umsatz-multi' || this.currentMapMode === 'werbeanteil';
-      const lastColLabel = isUmsatzMode ? 'Umsatz-\nAnteil' : 'WK (%)';
+      const lastColLabel = isUmsatzMode ? this.t('table.anteil') : this.t('table.wk');
       const headers = [
-        { label: 'PLZ',                    width: '44px' },
-        { label: 'Gemeinde',               width: '88px' },
+        { label: this.t('table.plz'),      width: '44px' },
+        { label: this.t('table.gemeinde'), width: '88px' },
         { label: 'HZ',                     width: '22px' },
-        { label: 'Umsatz\n(Hochger.)', width: '58px' },
+        { label: this.t('table.umsatz'),   width: '58px' },
         { label: lastColLabel,             width: '46px' }
       ];
 
@@ -4247,7 +4420,7 @@
         exportRows.push({
           plz:      __bare,
           gemeinde: (this.geoNotes?.[plz] || '').replace(/^\d{4,5}\s*[-–]?\s*/, '').trim(),
-          status:   kennwerte?.isCritical ? 'kritisch' : (kennwerte?.isHZ ? 'HZ' : ''),
+          status:   kennwerte?.isCritical ? this.t('csv.status.critical') : (kennwerte?.isHZ ? this.t('csv.status.hz') : ''),
           umsatz:   umsatzRaw,
           lastCol:  lastColRaw,
           kunden:   Number(plzVals.kdErhebung) || 0,
@@ -4258,7 +4431,7 @@
       // Snapshot des zuletzt gerenderten Zustands für den CSV-Export.
       this._tableExport = {
         rows: exportRows,
-        meta: { lastColLabel: isUmsatzMode ? 'Umsatz-Anteil (%)' : 'WK (%)' },
+        meta: { lastColLabel: isUmsatzMode ? this.t('csv.umsatzAnteil') : this.t('csv.wk') },
       };
 
       tbody.appendChild(fragment);
@@ -4270,8 +4443,8 @@
       exportBar.className = 'table-export-bar';
       const n = exportRows.length;
       exportBar.innerHTML =
-        `<span class="row-count">${n} ${n === 1 ? 'Zeile' : 'Zeilen'}</span>` +
-        `<button type="button" class="table-export-btn" title="Tabelle als CSV exportieren">⤓ CSV</button>`;
+        `<span class="row-count">${n} ${n === 1 ? this.t('table.row') : this.t('table.rows')}</span>` +
+        `<button type="button" class="table-export-btn" title="${escapeHtml(this.t('table.title.exportCsv'))}">${this.t('table.exportCsv')}</button>`;
       this._on(exportBar.querySelector('.table-export-btn'), 'click', () => this.exportTableAsCSV());
       container.appendChild(exportBar);
 
@@ -4316,9 +4489,13 @@
         return s;
       };
 
-      const lastColLabel = snap.meta?.lastColLabel || 'WK (%)';
+      const lastColLabel = snap.meta?.lastColLabel || this.t('csv.wk');
       const cur = this._currencySym();
-      const header = ['PLZ', 'Gemeinde', 'Status', `Umsatz hochgerechnet (${cur})`, lastColLabel, 'Kunden (Bons)', `Ø-Bon (${cur})`];
+      const header = [
+        this.t('csv.plz'), this.t('csv.gemeinde'), this.t('csv.status'),
+        `${this.t('csv.umsatzHoch')} (${cur})`, lastColLabel,
+        this.t('csv.kunden'), `${this.t('csv.bon')} (${cur})`,
+      ];
 
       const lines = [header.map(esc).join(SEP)];
       for (const r of snap.rows) {
@@ -4537,6 +4714,16 @@
       const chkCompetitorsUms  = this.$('chk-competitors-umsatz');
 
       this.showCritical = !!chkDoppel?.checked;
+
+      // Sprachumschalter (DE/EN). Initiale Sprache ggf. aus SAC-Property.
+      if (this.language === 'en' || this.language === 'de') this.lang = this.language;
+      _activeLocale = LOCALE_BY_LANG[this.lang] || 'de-DE';
+      this._shadowRoot.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === this.lang);
+        this._on(btn, 'click', () => this.setLang(btn.dataset.lang));
+      });
+      this._applyI18n(this._shadowRoot);
+      this._refreshSelectPlaceholders();
 
       // Map-Buttons
       this._on(this.$('map-tile-toggle-btn'), 'click', () => this.toggleMapTiles());
@@ -5998,9 +6185,10 @@
       const nummerSelect = this.$('nummer-select');
       if (!erhSelect || !jahrSelect || !nummerSelect) return;
 
-      const mkPlaceholder = (text) => {
+      const mkPlaceholder = (text, i18nKey) => {
         const opt = document.createElement('option');
         opt.value = ''; opt.textContent = text; opt.disabled = true; opt.selected = true;
+        if (i18nKey) opt.dataset.i18nPh = i18nKey;   // für Live-Sprachwechsel
         return opt;
       };
 
@@ -6015,7 +6203,7 @@
       if (!sameSet) {
         const previousValue = erhSelect.value;
         erhSelect.innerHTML = '';
-        erhSelect.appendChild(mkPlaceholder('– ErhebungsID wählen –'));
+        erhSelect.appendChild(mkPlaceholder(this.t('filter.ph.erhebung'),'filter.ph.erhebung'));
         for (const erhID of desiredErhIDs) {
           const opt = document.createElement('option');
           opt.value = erhID; opt.textContent = this._fmtGF(erhID);
@@ -6138,8 +6326,8 @@
 
       jahrSelect.innerHTML = '';   jahrSelect.disabled = true;
       nummerSelect.innerHTML = ''; nummerSelect.disabled = true;
-      jahrSelect.appendChild(mkPlaceholder('– Jahr wählen –'));
-      nummerSelect.appendChild(mkPlaceholder('– Nummer wählen –'));
+      jahrSelect.appendChild(mkPlaceholder(this.t('filter.ph.jahr'),'filter.ph.jahr'));
+      nummerSelect.appendChild(mkPlaceholder(this.t('filter.ph.nummer'),'filter.ph.nummer'));
 
       const filterBtn = this.$('filter-button');
       const updateBtnState = () => {
@@ -6151,19 +6339,19 @@
       this._on(erhSelect, 'change', () => {
         jahrSelect.innerHTML = ''; nummerSelect.innerHTML = '';
         jahrSelect.disabled = false; nummerSelect.disabled = true;
-        jahrSelect.appendChild(mkPlaceholder('– Jahr wählen –'));
+        jahrSelect.appendChild(mkPlaceholder(this.t('filter.ph.jahr'),'filter.ph.jahr'));
         for (const j of Object.keys(this._erhData?.[erhSelect.value] || {})) {
           if (isNull(j)) continue;
           const opt = document.createElement('option');
           opt.value = j; opt.textContent = j;
           jahrSelect.appendChild(opt);
         }
-        nummerSelect.appendChild(mkPlaceholder('– Nummer wählen –'));
+        nummerSelect.appendChild(mkPlaceholder(this.t('filter.ph.nummer'),'filter.ph.nummer'));
         updateBtnState();
       });
       this._on(jahrSelect, 'change', () => {
         nummerSelect.innerHTML = ''; nummerSelect.disabled = false;
-        nummerSelect.appendChild(mkPlaceholder('– Nummer wählen –'));
+        nummerSelect.appendChild(mkPlaceholder(this.t('filter.ph.nummer'),'filter.ph.nummer'));
         const set = this._erhData?.[erhSelect.value]?.[jahrSelect.value] || [];
         for (const n of Array.from(set)) {
           if (isNull(n)) continue;
@@ -7335,6 +7523,57 @@
     // Aktuelles Währungssymbol (LOC_CURRCY ist führend). Fallback '€'.
     _currencySym() { return currencySymbol(this._displayCurrency); }
 
+    // ── i18n ───────────────────────────────────────────────────────────
+    // Übersetzt einen Key in die aktive Sprache (mit Platzhaltern).
+    t(key, vars) { return translate(this.lang, key, vars); }
+
+    // Setzt statische Labels/Titles/Placeholder aus data-i18n-Attributen.
+    // data-i18n            → textContent
+    // data-i18n-title      → title-Attribut
+    // data-i18n-html       → innerHTML (nur wo Markup nötig ist)
+    _applyI18n(root) {
+      const r = root || this._shadowRoot;
+      if (!r) return;
+      r.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = this.t(el.dataset.i18n); });
+      r.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = this.t(el.dataset.i18nTitle); });
+      r.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = this.t(el.dataset.i18nHtml); });
+    }
+
+    // Zentrale Sprachumschaltung: State + Locale setzen, statische Labels neu
+    // schreiben, dynamische Ansichten (Dropdowns, Legende, Tabelle, offenes
+    // Popup, Doku) neu rendern. Idempotent.
+    setLang(lang) {
+      const next = (lang === 'en') ? 'en' : 'de';
+      this.lang = next;
+      _activeLocale = LOCALE_BY_LANG[next] || 'de-DE';
+      // Umschalter-Optik
+      this._shadowRoot?.querySelectorAll('.lang-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.lang === next));
+      // Statische Labels
+      this._applyI18n(this._shadowRoot);
+      // Dropdown-Platzhalter (werden in JS erzeugt) neu setzen
+      this._refreshSelectPlaceholders?.();
+      // Dynamische Ansichten neu rendern, soweit relevant/geladen
+      if (this._activeFilter) {
+        this.updateHeatmapLegend?.();
+        this.renderDataTable?.(this.filteredKennwerte);
+        this.updateStreuverlustFooter?.();
+        this._rerenderActivePopup?.();
+      }
+      if (this._sidebarView === 'docs') this._renderDocsView?.();
+      // Best-effort Persistenz (SAC-Property, falls vorhanden)
+      try { if (this._propsApi?.setPropertyValue) this._propsApi.setPropertyValue('language', next); } catch (e) {}
+    }
+
+    // Aktualisiert die (in JS erzeugten) Platzhalter-Optionen der Dropdowns auf
+    // die aktive Sprache. Nur die Platzhalter (data-i18n-ph) — echte Optionen
+    // wie ErhebungsIDs/Jahre bleiben unverändert.
+    _refreshSelectPlaceholders() {
+      this._shadowRoot?.querySelectorAll('option[data-i18n-ph]').forEach(opt => {
+        opt.textContent = this.t(opt.dataset.i18nPh);
+      });
+    }
+
 
     // ── Heatmap-Legende ────────────────────────────────────────────────
     updateHeatmapLegend() {
@@ -7379,10 +7618,10 @@
             { c: '#fce9b2', lo: null, hi: 0.80,  txt: `&lt; ${eur(0.80)} ${small(`Idx &lt; ${idx(0.80)}`)}` },
           ];
           legend.innerHTML =
-            `<strong>Ø-Bon</strong>` +
-            `<div style="font-size:0.68rem;color:#adb5bd;margin:2px 0 4px">Ø ${nf(ref)} ${cur} = Index 100</div>` +
+            `<strong>${this.t('legend.bon')}</strong>` +
+            `<div style="font-size:0.68rem;color:#adb5bd;margin:2px 0 4px">${this.t('legend.avgIsIndex', { v: nf(ref) + ' ' + cur })}</div>` +
             bonRows.map(b => row(b.c, b.txt)).join('') +
-            row('#cfd4da', `&lt; ${BON_MIN_KD} Bons ${small('(zu wenig Daten)')}`);
+            row('#cfd4da', `${this.t('legend.tooFewBons', { n: BON_MIN_KD })} ${small(this.t('legend.tooFewData'))}`);
           legend.classList.remove('hidden'); return;
         }
 
@@ -7396,7 +7635,7 @@
           }
           if (max === 0) { legend.classList.add('hidden'); return; }
           const dec = perHH ? 2 : 0;
-          const fmt = (x) => x.toLocaleString('de-DE', { maximumFractionDigits: dec });
+          const fmt = (x) => nfmt(x, { maximumFractionDigits: dec });
           const steps = [
             { v: max,     label: `&gt; ${fmt(max*0.95)}` },
             { v: max*.85, label: `${fmt(max*0.65)} – ${fmt(max*0.85)}` },
@@ -7405,7 +7644,7 @@
             { v: max*.20, label: `${fmt(max*0.10)} – ${fmt(max*0.20)}` },
             { v: 0,       label: `&lt; ${fmt(max*0.10)}` },
           ];
-          legend.innerHTML = `<strong>${perHH ? 'Kunden pro Haushalt' : 'Anzahl Kunden (Bons)'}</strong>` +
+          legend.innerHTML = `<strong>${perHH ? this.t('legend.kundenHH') : this.t('legend.kunden')}</strong>` +
             steps.map(s => row(this.getDynamicHeatColor(s.v, max), s.label)).join('');
           legend.classList.remove('hidden'); return;
         }
@@ -7419,7 +7658,7 @@
           if (sum > max) max = sum;
         }
         if (max === 0) { legend.classList.add('hidden'); return; }
-        const fmt = (x) => x.toLocaleString('de-DE', { maximumFractionDigits: 0 });
+        const fmt = (x) => nfmt(x, { maximumFractionDigits: 0 });
         const steps = [
           { v: max,       label: `&gt; ${fmt(max*0.95)} ${cur}` },
           { v: max*.85,   label: `${fmt(max*0.75)} – ${fmt(max*0.85)} ${cur}` },
@@ -7428,7 +7667,7 @@
           { v: max*.20,   label: `${fmt(max*0.10)} – ${fmt(max*0.20)} ${cur}` },
           { v: 0,         label: `&lt; ${fmt(max*0.10)} ${cur}` },
         ];
-        legend.innerHTML = `<strong>Umsatz</strong>` +
+        legend.innerHTML = `<strong>${this.t('legend.umsatz')}</strong>` +
           steps.map(s => row(this.getDynamicHeatColor(s.v, max), s.label)).join('');
         legend.classList.remove('hidden'); return;
       }
@@ -7728,7 +7967,7 @@
         const lbl = getOrCreateLabel();
         lbl.style.opacity = '0';
         this._setTimeout(() => {
-          lbl.textContent = `Vorschau · ${this._fmtGF(erhID)}`;
+          lbl.textContent = `${this.t('preview.prefix')} · ${this._fmtGF(erhID)}`;
           lbl.style.opacity = '1';
         }, 150);
 
