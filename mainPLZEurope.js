@@ -5399,6 +5399,28 @@
           this.applyStyleToLayer(this._layerByPLZ[plz]);
         }
       }
+      // Wichtig: die (opake) Landfläche der Länder-Layer liegt ZWISCHEN den
+      // Kacheln und den PLZ-Flächen. Bei aktiven Kacheln muss sie weg, sonst
+      // verdeckt sie die Karte komplett — dann helfen auch halbtransparente
+      // PLZ-Flächen nichts.
+      this._applyBordersTileState();
+    }
+
+    // Landfüllung der Länder-Grenz-Layer an den Kachel-Status koppeln:
+    // Kacheln an → nur Kontur (Kacheln scheinen durch); Kacheln aus → sanfte
+    // Landfläche wie in der Übersicht. Das aktuell in der Vorschau getönte
+    // Land wird nicht angefasst (dessen Tönung bleibt erhalten).
+    _applyBordersTileState() {
+      if (!this._borderLayerByLand) return;
+      const tiles = !!this._tilesVisible;
+      for (const [land, lyr] of this._borderLayerByLand) {
+        if (land === this._previewTintLand) continue;
+        try {
+          lyr.setStyle(tiles
+            ? { fill: false, color: '#8b94a0', weight: 1.1, opacity: 0.85 }
+            : { fill: true, fillColor: '#f4f1ea', fillOpacity: 1, color: '#aab2bd', weight: 1.2, opacity: 0.9 });
+        } catch (e) { /* Layer ggf. nicht auf der Karte */ }
+      }
     }
 
     // ── Niederlassungen / Marker ───────────────────────────────────────
@@ -8027,8 +8049,12 @@
     _tintPreviewLand(land) {
       if (!this._borderLayerByLand) return;
       if (this._previewTintLand === land) return;
-      const NEUTRAL = { fillColor: '#f4f1ea', color: '#aab2bd', weight: 1.2, opacity: 0.9 };
-      const ACTIVE  = { fillColor: '#fbe4e4', color: '#b41821', weight: 1.8, opacity: 0.95 };
+      // Neutral-Reset respektiert den Kachel-Status: bei aktiven Kacheln keine
+      // Landfüllung (sonst würde das vorher getönte Land die Karte verdecken).
+      const NEUTRAL = this._tilesVisible
+        ? { fill: false, fillColor: '#f4f1ea', color: '#8b94a0', weight: 1.1, opacity: 0.85 }
+        : { fill: true, fillColor: '#f4f1ea', fillOpacity: 1, color: '#aab2bd', weight: 1.2, opacity: 0.9 };
+      const ACTIVE  = { fill: true, fillColor: '#fbe4e4', fillOpacity: 1, color: '#b41821', weight: 1.8, opacity: 0.95 };
       const prev = this._borderLayerByLand.get(this._previewTintLand);
       if (prev) { try { prev.setStyle(NEUTRAL); } catch (e) {} }
       const next = land ? this._borderLayerByLand.get(land) : null;
