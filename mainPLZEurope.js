@@ -1698,7 +1698,7 @@
         box-shadow: -2px -2px 16px rgba(0,0,0,0.08);
         scrollbar-width: thin; scrollbar-color: var(--red) var(--gray-100);
       }
-      #map-control-panel.panel-auto   { height: auto; max-height: 68%; overflow-y: visible; }
+      #map-control-panel.panel-auto   { height: auto; max-height: 68%; overflow-y: auto; }
       #map-control-panel.panel-large  { height: 68%; }
       #map-control-panel.panel-medium { height: 30%; }
       #map-control-panel::before {
@@ -1824,17 +1824,38 @@
       .triple-switch span.disabled { opacity: 0.35; cursor: not-allowed; }
       .category-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 
-      /* ─── HWG-Auswahl (A–O) ──────────────────────────────────────── */
+      /* ─── HWG-Auswahl (A–O), aufklappbar ─────────────────────────── */
       .hwg-section { margin-top: 10px; transition: opacity 0.18s; }
-      .hwg-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+      .hwg-head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 8px; cursor: pointer; user-select: none;
+        padding: 3px 2px; border-radius: var(--radius-sm);
+        transition: background 0.14s;
+      }
+      .hwg-head:hover { background: var(--gray-50); }
+      .hwg-head-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+      .hwg-head-left .switch-label { margin: 0; }
+      .hwg-caret {
+        font-size: 0.7rem; color: var(--gray-500); line-height: 1;
+        transition: transform 0.2s var(--ease-out); display: inline-block;
+      }
+      .hwg-section:not(.collapsed) .hwg-caret { transform: rotate(90deg); }
+      .hwg-count {
+        font-size: 0.62rem; font-weight: 700; color: var(--red);
+        background: var(--red-bg); border-radius: 100px; padding: 1px 7px;
+      }
+      .hwg-count:empty { display: none; }
+      /* Aufklapp-Animation: Body wird ein-/ausgeblendet. */
+      .hwg-body { overflow: hidden; }
+      .hwg-section.collapsed .hwg-body { display: none; }
       .hwg-all-btn {
         border: 1px solid var(--gray-200); background: var(--white);
         color: var(--gray-600); font-family: var(--font); font-size: 0.64rem; font-weight: 700;
-        border-radius: 100px; padding: 2px 9px; cursor: pointer; line-height: 1.3;
+        border-radius: 100px; padding: 2px 9px; cursor: pointer; line-height: 1.3; flex-shrink: 0;
         transition: background 0.15s, color 0.15s, border-color 0.15s;
       }
       .hwg-all-btn:hover { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
-      .hwg-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+      .hwg-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 6px; }
       .hwg-chip {
         display: flex; align-items: center; justify-content: center;
         aspect-ratio: 1 / 1; min-height: 24px;
@@ -2437,6 +2458,9 @@
       @container map (max-height: 520px) {
         .side-popup { max-height: 58%; }
         #map-control-panel.panel-large { height: 58%; }
+        /* Umsatz-Panel (panel-auto) darf auf niedrigen Fenstern höher werden,
+           damit mehr sichtbar ist, bevor gescrollt werden muss. */
+        #map-control-panel.panel-auto { max-height: 82%; }
       }
 
       /* Sehr breite Screens (4K): harte Kappung schon per clamp() oben; hier
@@ -2624,31 +2648,37 @@
           <div class="category-toggle active" data-cat="ra" data-i18n="cat.ra">📦 R&amp;A</div>
           <div class="category-toggle active" data-cat="online" data-i18n="cat.online">🛒 KUBE OS</div>
         </div>
-        <!-- HWG-Auswahl (A–O). Filtert nur den Umsatz; bei Ø-Bon/Kunden inaktiv.
-             Wird ausgeblendet, wenn die Erhebung keine HWGs liefert. -->
-        <div id="hwg-section" class="hwg-section hidden">
-          <div class="hwg-head">
-            <span class="switch-label" data-i18n="panel.hwg">Hauptwarengruppe</span>
+        <!-- HWG-Auswahl (A–O), aufklappbar. Filtert nur den Umsatz; bei Ø-Bon/
+             Kunden inaktiv. Ausgeblendet, wenn die Erhebung keine HWGs liefert. -->
+        <div id="hwg-section" class="hwg-section hidden collapsed">
+          <div class="hwg-head" id="hwg-head" role="button" tabindex="0" aria-expanded="false">
+            <span class="hwg-head-left">
+              <span class="hwg-caret">▸</span>
+              <span class="switch-label" data-i18n="panel.hwg">Hauptwarengruppe</span>
+              <span class="hwg-count" id="hwg-count"></span>
+            </span>
             <button type="button" id="hwg-all-btn" class="hwg-all-btn" data-i18n="panel.hwgAll">Alle</button>
           </div>
-          <div id="hwg-grid" class="hwg-grid">
-            <span class="hwg-chip active" data-hwg="A">A</span>
-            <span class="hwg-chip active" data-hwg="B">B</span>
-            <span class="hwg-chip active" data-hwg="C">C</span>
-            <span class="hwg-chip active" data-hwg="D">D</span>
-            <span class="hwg-chip active" data-hwg="E">E</span>
-            <span class="hwg-chip active" data-hwg="F">F</span>
-            <span class="hwg-chip active" data-hwg="G">G</span>
-            <span class="hwg-chip active" data-hwg="H">H</span>
-            <span class="hwg-chip active" data-hwg="I">I</span>
-            <span class="hwg-chip active" data-hwg="J">J</span>
-            <span class="hwg-chip active" data-hwg="K">K</span>
-            <span class="hwg-chip active" data-hwg="L">L</span>
-            <span class="hwg-chip active" data-hwg="M">M</span>
-            <span class="hwg-chip active" data-hwg="N">N</span>
-            <span class="hwg-chip active" data-hwg="O">O</span>
+          <div class="hwg-body" id="hwg-body">
+            <div id="hwg-grid" class="hwg-grid">
+              <span class="hwg-chip active" data-hwg="A">A</span>
+              <span class="hwg-chip active" data-hwg="B">B</span>
+              <span class="hwg-chip active" data-hwg="C">C</span>
+              <span class="hwg-chip active" data-hwg="D">D</span>
+              <span class="hwg-chip active" data-hwg="E">E</span>
+              <span class="hwg-chip active" data-hwg="F">F</span>
+              <span class="hwg-chip active" data-hwg="G">G</span>
+              <span class="hwg-chip active" data-hwg="H">H</span>
+              <span class="hwg-chip active" data-hwg="I">I</span>
+              <span class="hwg-chip active" data-hwg="J">J</span>
+              <span class="hwg-chip active" data-hwg="K">K</span>
+              <span class="hwg-chip active" data-hwg="L">L</span>
+              <span class="hwg-chip active" data-hwg="M">M</span>
+              <span class="hwg-chip active" data-hwg="N">N</span>
+              <span class="hwg-chip active" data-hwg="O">O</span>
+            </div>
+            <div class="hwg-hint" id="hwg-hint" data-i18n="panel.hwgHint">filtert nur den Umsatz</div>
           </div>
-          <div class="hwg-hint" id="hwg-hint" data-i18n="panel.hwgHint">filtert nur den Umsatz</div>
         </div>
       </div>
       <div id="panel-footer">
@@ -5068,15 +5098,30 @@
           }
           this._shadowRoot.querySelectorAll('.hwg-chip').forEach(c =>
             c.classList.toggle('active', avail.has(c.dataset.hwg) && this._activeHwgs.has(c.dataset.hwg)));
+          this._updateHwgCount();
           refreshMapAndPopup();
         });
       });
-      this._on(this.$('hwg-all-btn'), 'click', () => {
+      this._on(this.$('hwg-all-btn'), 'click', (ev) => {
+        ev.stopPropagation();   // nicht den Aufklapp-Header mit-triggern
         if (this.umsatzKennzahl !== 'umsatz') return;
         this._activeHwgs = new Set(this._availableHwgs || []);
         this._shadowRoot.querySelectorAll('.hwg-chip').forEach(c =>
           c.classList.toggle('active', this._activeHwgs.has(c.dataset.hwg)));
+        this._updateHwgCount();
         refreshMapAndPopup();
+      });
+      // HWG-Sektion auf-/zuklappen (Standard: zugeklappt, spart Panel-Höhe).
+      const hwgHead = this.$('hwg-head');
+      const toggleHwg = () => {
+        const sec = this.$('hwg-section');
+        if (!sec) return;
+        const collapsed = sec.classList.toggle('collapsed');
+        hwgHead?.setAttribute('aria-expanded', String(!collapsed));
+      };
+      this._on(hwgHead, 'click', toggleHwg);
+      this._on(hwgHead, 'keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHwg(); }
       });
 
       this._on(chkDoppel, 'change', () => {
@@ -7749,7 +7794,19 @@
         chip.classList.toggle('hwg-unavailable', !ok);
         chip.classList.toggle('active', ok && this._activeHwgs.has(h));
       });
+      this._updateHwgCount();
       this._syncHwgEnabled();
+    }
+
+    // Zeigt im Aufklapp-Header, wie viele HWGs aktiv sind — aber nur, wenn eine
+    // echte Teilmenge gewählt ist (bei "alle aktiv" bleibt es leer = kein Filter).
+    _updateHwgCount() {
+      const el = this.$('hwg-count');
+      if (!el) return;
+      const avail = this._availableHwgs || new Set();
+      const total = avail.size;
+      const active = [...(this._activeHwgs || [])].filter(h => avail.has(h)).length;
+      el.textContent = (total > 0 && active < total) ? `${active} / ${total}` : '';
     }
 
     // HWG betrifft nur die Umsatz-Kennzahl (ein Bon umfasst mehrere HWGs) →
@@ -9310,7 +9367,9 @@
       // HWG zurücksetzen: keine Daten im Hauptmenü → Sektion ausblenden.
       this._availableHwgs = new Set();
       this._activeHwgs = new Set();
-      this.$('hwg-section')?.classList.add('hidden');
+      this.$('hwg-section')?.classList.add('hidden', 'collapsed');
+      this.$('hwg-head')?.setAttribute('aria-expanded', 'false');
+      this.$('hwg-count') && (this.$('hwg-count').textContent = '');
       this.currentMapMode = 'wk'; 
       this.umsatzMainMode = 'gesamt'; this.umsatzDarstellung = 'abs';
       // Bug WA10 Fix: Werbe/Mitgekauft-States sowohl logisch als auch UI-mäßig
