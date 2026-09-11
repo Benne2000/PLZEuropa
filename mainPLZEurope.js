@@ -70,6 +70,21 @@
     return UMSATZ_QUELLE_MAP[key] || UMSATZ_QUELLE_MAP[key.replace(/_/g, '')] || null;
   };
 
+  // ── Hauptwarengruppe (HWG) ───────────────────────────────────────────
+  // HWGs sind Einzelbuchstaben A–O. HWG splittet die Datenzeilen zusätzlich
+  // auf (Grain: PLZ×NL×Quelle×HWG). Für UMSATZ additiv; für BONS NICHT (ein
+  // Bon umfasst Artikel mehrerer HWGs) → Bons/Ø-Bon ignorieren HWG und werden
+  // je (PLZ,NL,Quelle) dedupliziert, damit HWG-Zeilen die Kundenzahl nicht
+  // vervielfachen.
+  const HWG_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
+  const mapHwg = (raw) => {
+    if (raw == null) return null;
+    const s = String(raw).trim().toUpperCase();
+    if (!s) return null;
+    const c = s[0];
+    return /^[A-O]$/.test(c) ? c : null;
+  };
+
   // Basis der interaktiven Umsatz-Anzeige (Heatmap + Popup "Nach Kategorien").
   // 'hochgerechnet' → BUMSNHOCH/BPROHOCH/BPROZUSH (konsistent mit WK%-Nenner und
   // Tabellenspalte "Umsatz (Hochger.)"). Auf 'ist' umstellbar (BUMISTB/BUMPROB/
@@ -134,6 +149,8 @@
       'panel.chk.werbeumsatz': 'Werbeumsatz', 'panel.chk.mitgekauft': 'Mitgekauft',
       'panel.kennzahl': 'Kennzahl', 'panel.kz.umsatz': 'Umsatz', 'panel.kz.bon': 'Ø-Bon', 'panel.kz.kunden': 'Kunden',
       'panel.darstellung': 'Darstellung', 'panel.da.abs': 'Absolut', 'panel.da.hh': 'pro HH', 'panel.da.werbeanteil': 'Werbeanteil',
+      'panel.hwg': 'Hauptwarengruppe', 'panel.hwgHint': 'filtert nur den Umsatz',
+      'panel.hwgOnlyRevenue': 'nur bei Kennzahl „Umsatz“', 'panel.hwgAll': 'Alle',
       'panel.home': '← Hauptmenü', 'panel.overview': '📋 Übersicht',
       'cat.stationaer': '🏬 Stationär', 'cat.pluscard': '💳 Pluscard', 'cat.ra': '📦 R&A', 'cat.online': '🛒 KUBE OS',
       // Legende
@@ -156,6 +173,7 @@
       // Popup — gemeinsame Feld-/Abschnittslabels
       'pp.strukturdaten': 'Strukturdaten', 'pp.erhebungsdaten': 'Erhebungsdaten',
       'pp.nachKategorien': 'Nach Kategorien',
+      'pp.nachHwg': 'Nach Warengruppe (HWG)',
       'pp.haushalte': 'Haushalte', 'pp.werbeverweigerer': 'Werbeverweigerer', 'pp.kaufkraft': 'Kaufkraft-Index',
       'pp.umsatzIst': 'Umsatz (Ist)', 'pp.kunden': 'Kunden (Bons)', 'pp.bon': 'Ø-Bon',
       'pp.gesamtumsatz': 'Gesamtumsatz', 'pp.tooFewBons': '< {n} Bons',
@@ -190,6 +208,8 @@
       'panel.chk.werbeumsatz': 'Ad revenue', 'panel.chk.mitgekauft': 'Add-on',
       'panel.kennzahl': 'Metric', 'panel.kz.umsatz': 'Revenue', 'panel.kz.bon': 'Avg. basket', 'panel.kz.kunden': 'Customers',
       'panel.darstellung': 'Display', 'panel.da.abs': 'Absolute', 'panel.da.hh': 'per HH', 'panel.da.werbeanteil': 'Ad share',
+      'panel.hwg': 'Merchandise group', 'panel.hwgHint': 'filters revenue only',
+      'panel.hwgOnlyRevenue': 'only for metric “Revenue”', 'panel.hwgAll': 'All',
       'panel.home': '← Main menu', 'panel.overview': '📋 Overview',
       'cat.stationaer': '🏬 In-store', 'cat.pluscard': '💳 Pluscard', 'cat.ra': '📦 C&C', 'cat.online': '🛒 KUBE OS',
       'legend.umsatz': 'Revenue', 'legend.bon': 'Avg. basket',
@@ -207,6 +227,7 @@
       'preview.prefix': 'Preview',
       'pp.strukturdaten': 'Structural data', 'pp.erhebungsdaten': 'Survey data',
       'pp.nachKategorien': 'By category',
+      'pp.nachHwg': 'By merchandise group',
       'pp.haushalte': 'Households', 'pp.werbeverweigerer': 'Advertising opt-outs', 'pp.kaufkraft': 'Purchasing-power index',
       'pp.umsatzIst': 'Revenue (actual)', 'pp.kunden': 'Customers (receipts)', 'pp.bon': 'Avg. basket',
       'pp.gesamtumsatz': 'Total revenue', 'pp.tooFewBons': '< {n} receipts',
@@ -1802,6 +1823,49 @@
       .triple-switch span.active   { background: var(--white); color: var(--red); box-shadow: var(--shadow-xs); }
       .triple-switch span.disabled { opacity: 0.35; cursor: not-allowed; }
       .category-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+      /* ─── HWG-Auswahl (A–O) ──────────────────────────────────────── */
+      .hwg-section { margin-top: 10px; transition: opacity 0.18s; }
+      .hwg-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+      .hwg-all-btn {
+        border: 1px solid var(--gray-200); background: var(--white);
+        color: var(--gray-600); font-family: var(--font); font-size: 0.64rem; font-weight: 700;
+        border-radius: 100px; padding: 2px 9px; cursor: pointer; line-height: 1.3;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+      }
+      .hwg-all-btn:hover { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+      .hwg-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+      .hwg-chip {
+        display: flex; align-items: center; justify-content: center;
+        aspect-ratio: 1 / 1; min-height: 24px;
+        border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+        background: var(--gray-50); color: var(--gray-600);
+        font-size: 0.74rem; font-weight: 700; cursor: pointer; user-select: none;
+        transition: background 0.14s var(--ease-out), color 0.14s, border-color 0.14s, transform 0.1s;
+      }
+      .hwg-chip:hover:not(.hwg-unavailable) { border-color: var(--red-border); transform: translateY(-1px); }
+      .hwg-chip.active {
+        background: var(--red-bg); border-color: var(--red); color: var(--red);
+        box-shadow: 0 0 0 2px var(--red-shadow);
+      }
+      .hwg-chip.hwg-unavailable {
+        opacity: 0.35; filter: grayscale(1); cursor: not-allowed;
+        background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-400);
+        box-shadow: none; pointer-events: none;
+      }
+      .hwg-hint { font-size: 0.62rem; color: var(--gray-400); margin-top: 4px; font-style: italic; }
+      /* HWG betrifft nur die Umsatz-Kennzahl → bei Ø-Bon/Kunden deaktiviert. */
+      .hwg-section.hwg-disabled { opacity: 0.4; pointer-events: none; }
+      .hwg-section.hwg-disabled .hwg-hint::after { content: ' — ' attr(data-only); }
+
+      /* ─── HWG-Aufschlüsselung im Umsatz-Popup (Mini-Balken je HWG) ─── */
+      .hwg-breakdown { padding: 4px 14px 10px; display: flex; flex-direction: column; gap: 3px; }
+      .hwg-row { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 8px; font-size: 0.76rem; }
+      .hwg-row-letter { font-weight: 700; color: var(--gray-700); text-align: center; }
+      .hwg-row-bar { height: 8px; background: var(--gray-100); border-radius: 100px; overflow: hidden; }
+      .hwg-row-bar > span { display: block; height: 100%; background: var(--red); border-radius: 100px; }
+      .hwg-row-val { font-variant-numeric: tabular-nums; color: var(--gray-700); white-space: nowrap; }
+      .hwg-row.hwg-row-dim { opacity: 0.38; }   /* aktuell abgewählte HWG */
       .category-toggle {
         padding: 7px 8px; border-radius: var(--radius-md);
         border: 1.5px solid var(--gray-200); background: var(--white); color: var(--gray-600);
@@ -2560,6 +2624,32 @@
           <div class="category-toggle active" data-cat="ra" data-i18n="cat.ra">📦 R&amp;A</div>
           <div class="category-toggle active" data-cat="online" data-i18n="cat.online">🛒 KUBE OS</div>
         </div>
+        <!-- HWG-Auswahl (A–O). Filtert nur den Umsatz; bei Ø-Bon/Kunden inaktiv.
+             Wird ausgeblendet, wenn die Erhebung keine HWGs liefert. -->
+        <div id="hwg-section" class="hwg-section hidden">
+          <div class="hwg-head">
+            <span class="switch-label" data-i18n="panel.hwg">Hauptwarengruppe</span>
+            <button type="button" id="hwg-all-btn" class="hwg-all-btn" data-i18n="panel.hwgAll">Alle</button>
+          </div>
+          <div id="hwg-grid" class="hwg-grid">
+            <span class="hwg-chip active" data-hwg="A">A</span>
+            <span class="hwg-chip active" data-hwg="B">B</span>
+            <span class="hwg-chip active" data-hwg="C">C</span>
+            <span class="hwg-chip active" data-hwg="D">D</span>
+            <span class="hwg-chip active" data-hwg="E">E</span>
+            <span class="hwg-chip active" data-hwg="F">F</span>
+            <span class="hwg-chip active" data-hwg="G">G</span>
+            <span class="hwg-chip active" data-hwg="H">H</span>
+            <span class="hwg-chip active" data-hwg="I">I</span>
+            <span class="hwg-chip active" data-hwg="J">J</span>
+            <span class="hwg-chip active" data-hwg="K">K</span>
+            <span class="hwg-chip active" data-hwg="L">L</span>
+            <span class="hwg-chip active" data-hwg="M">M</span>
+            <span class="hwg-chip active" data-hwg="N">N</span>
+            <span class="hwg-chip active" data-hwg="O">O</span>
+          </div>
+          <div class="hwg-hint" id="hwg-hint" data-i18n="panel.hwgHint">filtert nur den Umsatz</div>
+        </div>
       </div>
       <div id="panel-footer">
         <button id="panel-home-btn"     class="panel-footer-btn" disabled data-i18n="panel.home">← Hauptmenü</button>
@@ -2631,6 +2721,11 @@
       this.currentMapMode        = 'wk';
       this.activeCategories      = new Set(CATEGORIES);
       this._availableCategories  = new Set(CATEGORIES); // in der Erhebung vorhandene Kategorien
+      // HWG (Hauptwarengruppe A–O). _activeHwgs = aktuell gewählte (Standard:
+      // alle verfügbaren = kein Filter). _availableHwgs = in der Erhebung
+      // vorhandene HWGs. Filtert NUR die Umsatz-Kennzahl (nicht Kunden/Ø-Bon).
+      this._availableHwgs        = new Set();
+      this._activeHwgs           = new Set();
       this.umsatzMainMode        = 'gesamt';
       this.umsatzDarstellung     = 'abs';
       // Kennzahl im Umsatz-Modus: 'umsatz' (Standard) | 'bon' (Ø-Bon) | 'kunden'.
@@ -4908,6 +5003,7 @@
             // Darstellungs-Optionen ggf. an die Kennzahl anpassen (z.B. "pro HH"
             // ist bei Ø-Bon nicht sinnvoll) und ungültige Auswahl zurücksetzen.
             this.syncDarstellung();
+            this._syncHwgEnabled();   // HWG nur bei Kennzahl "Umsatz" aktiv
             refreshMapAndPopup();
           });
         });
@@ -4948,6 +5044,39 @@
           }
           refreshMapAndPopup();
         });
+      });
+
+      // HWG-Chips (A–O). Verhalten analog zu den Kategorie-Toggles:
+      //   alle aktiv + Klick → nur diese eine; aktive → abwählen (leer → alle);
+      //   inaktive → hinzufügen. Nicht verfügbare (ausgegraute) ignorieren.
+      this._shadowRoot.querySelectorAll('.hwg-chip').forEach(chip => {
+        this._on(chip, 'click', () => {
+          if (chip.classList.contains('hwg-unavailable')) return;
+          if (this.umsatzKennzahl !== 'umsatz') return; // Sektion inaktiv
+          const h = chip.dataset.hwg;
+          const avail = this._availableHwgs || new Set();
+          const availList = HWG_LETTERS.filter(x => avail.has(x));
+          if (!this._activeHwgs) this._activeHwgs = new Set(avail);
+          const allActive = availList.every(x => this._activeHwgs.has(x));
+          if (allActive) {
+            this._activeHwgs = new Set([h]);
+          } else if (this._activeHwgs.has(h)) {
+            this._activeHwgs.delete(h);
+            if (this._activeHwgs.size === 0) this._activeHwgs = new Set(avail);
+          } else {
+            this._activeHwgs.add(h);
+          }
+          this._shadowRoot.querySelectorAll('.hwg-chip').forEach(c =>
+            c.classList.toggle('active', avail.has(c.dataset.hwg) && this._activeHwgs.has(c.dataset.hwg)));
+          refreshMapAndPopup();
+        });
+      });
+      this._on(this.$('hwg-all-btn'), 'click', () => {
+        if (this.umsatzKennzahl !== 'umsatz') return;
+        this._activeHwgs = new Set(this._availableHwgs || []);
+        this._shadowRoot.querySelectorAll('.hwg-chip').forEach(c =>
+          c.classList.toggle('active', this._activeHwgs.has(c.dataset.hwg)));
+        refreshMapAndPopup();
       });
 
       this._on(chkDoppel, 'change', () => {
@@ -5840,6 +5969,27 @@
         bonTxt = `<span style="opacity:.6;font-weight:500">&lt; ${BON_MIN_KD} Bons</span>`;
       }
 
+      // HWG-Aufschlüsselung (Mini-Balken je Warengruppe A–O) — nur wenn die
+      // Erhebung HWGs liefert. Zeigt den Umsatz je HWG; abgewählte HWGs werden
+      // gedimmt dargestellt (folgt dem HWG-Filter im Panel).
+      let hwgBreakdownHtml = '';
+      const hwgEntries = Object.entries(values.umsatzByHwg || {})
+        .filter(([, u]) => u > 0)
+        .sort((a, b) => a[0].localeCompare(b[0]));
+      if (hwgEntries.length) {
+        const maxU = hwgEntries.reduce((m, [, u]) => u > m ? u : m, 0);
+        const hasFilter = this._availableHwgs && this._availableHwgs.size > 0;
+        const rows = hwgEntries.map(([h, u]) => {
+          const w = maxU > 0 ? Math.round((u / maxU) * 100) : 0;
+          const dim = hasFilter && this._activeHwgs && !this._activeHwgs.has(h) ? ' hwg-row-dim' : '';
+          return `<div class="hwg-row${dim}"><span class="hwg-row-letter">${h}</span>`
+               + `<span class="hwg-row-bar"><span style="width:${w}%"></span></span>`
+               + `<span class="hwg-row-val">${fmtNum(u)} ${cur}</span></div>`;
+        }).join('');
+        hwgBreakdownHtml = `<div class="section-title">${this.t('pp.nachHwg')}</div>`
+          + `<div class="hwg-breakdown">${rows}</div>`;
+      }
+
       popup.innerHTML = `
         <div class="popup-header">
           <div style="overflow:hidden;min-width:0">
@@ -5883,6 +6033,8 @@
             <div class="value" style="${dis('online')}">${fmtNum(os.abs)} ${cur}</div>
             <div class="value" style="${dis('online')}">${fmtDec(os.hh)} ${cur}</div>
           </div>
+
+          ${hwgBreakdownHtml}
 
           <div class="section-title">Umsatzanteile (Gesamt)</div>
           <div class="umsatz-bar" style="margin:8px 14px 2px">
@@ -6998,39 +7150,60 @@
             umsatzErhebung: 0, kdErhebung: 0, auflage: 0,
             werbeverweigerer: 0, kaufkraftIdx: 0,
             kdByCat: {}, istByCat: {},
+            _seenKd: new Set(),   // (NL|Kategorie) — Bon/Auflage-Dedup gegen HWG
+            umsatzByHwg: {},      // HWG → Umsatz (für Popup-Aufschlüsselung)
           };
         }
         const v = aggregated[plz];
-        // Stammdaten sind auf JEDER PLZ_QUELLE-Zeile wiederholt (keine Gummierung).
-        // HH/Kaufkraft via Ø, Werbeverweigerer via max → robust gegen die
-        // Wiederholung (Ø/max von [X,X,X,X] = X). Ist-Gesamtumsatz, Bons und
-        // Auflage sind je Herkunft aufgeteilt → additiv über alle Zeilen summiert.
+        // Stammdaten sind auf JEDER Zeile (Quelle × HWG) wiederholt. HH/Kaufkraft
+        // via Ø, Werbeverweigerer via max → robust gegen die Wiederholung.
         const hh = parseHH(row['value_haushalte_0']?.raw);
         if (hh > 0) v._hhValues.push(hh);
-        v.umsatzErhebung    += safe(row['value_ums_erhebung_0']?.raw); // BUMISTB (Ist ges., je Herkunft)
-        v.kdErhebung        += safe(row['value_kd_erhebung_0']?.raw);  // BRECEIPTS
-        v.auflage           += safe(row['value_auflage_0']?.raw);      // BAUFLAGE
         v.werbeverweigerer   = Math.max(v.werbeverweigerer, safe(row['value_werbeverweigerer_0']?.raw));
         const kk = safe(row['value_kaufkraft_0']?.raw);
         if (kk > 0) v._kkValues.push(kk);
 
-        // Kategorie aus PLZ_QUELLE ableiten und in den passenden Bucket buchen.
-        // Umsatz je Herkunft ist additiv (echte Aufteilung, keine Wiederholung).
         const cat  = mapUmsatzQuelle(row['dimension_plz_quelle_0']?.id);
         if (!cat) continue; // unbekannte/aggregierte Herkunft → nicht einbuchen
-        // Bons + Ist-Umsatz JE KATEGORIE mitführen — damit Kunden/Ø-Bon der
-        // Kategorie-Auswahl unten folgen können (nicht nur PLZ-Gesamt).
+        const nlId = row['dimension_niederlassung_0']?.id?.trim() || '';
+        const hwg  = mapHwg(row['dimension_hwg_0']?.id);
         const bons = safe(row['value_kd_erhebung_0']?.raw);
         const ist  = safe(row['value_ums_erhebung_0']?.raw);
-        v.kdByCat[cat]  = (v.kdByCat[cat]  || 0) + bons;
+        const aufl = safe(row['value_auflage_0']?.raw);
+
+        // Ist-Umsatz ist je HWG aufgeteilt → additiv über alle HWG-Zeilen
+        // (Zähler für den Ø-Bon; unabhängig vom HWG-Filter).
         v.istByCat[cat] = (v.istByCat[cat] || 0) + ist;
+        v.umsatzErhebung += ist;
+        // Bons + Auflage: je (NL,Kategorie) nur EINMAL zählen — HWG-Zeilen
+        // wiederholen dieselbe Bon-/Auflagenzahl (ein Bon umfasst mehrere HWGs).
+        // Ohne HWG in der Query ist das genau eine Zeile je (NL,Kategorie) →
+        // verhält sich identisch zu vorher.
+        const dk = nlId + '|' + cat;
+        if (!v._seenKd.has(dk)) {
+          v._seenKd.add(dk);
+          v.kdByCat[cat] = (v.kdByCat[cat] || 0) + bons;
+          v.kdErhebung  += bons;
+          v.auflage     += aufl;
+        }
+
         const uGes = safe(row[F_GES]?.raw);
         const uWrb = safe(row[F_WRB]?.raw);
         const uZus = safe(row[F_ZUS]?.raw);
-        if (cat === 'stationaer') { v.umsatz     += uGes; v.umsatzWerbung     += uWrb; v.umsatzZusatz     += uZus; }
-        else if (cat === 'ra')    { v.ra         += uGes; v.raWerbung         += uWrb; v.raZusatz         += uZus; }
-        else if (cat === 'online'){ v.onlineshop += uGes; v.onlineshopWerbung += uWrb; v.onlineshopZusatz += uZus; }
-        else if (cat === 'pluscard'){ v.pluscard += uGes; v.pluscardWerbung   += uWrb; v.pluscardZusatz   += uZus; }
+        // Umsatz je HWG (Gesamt, alle Kategorien) für die Popup-Aufschlüsselung
+        // — ungefiltert, damit das Balken-Breakdown immer alle HWGs zeigt.
+        if (hwg) v.umsatzByHwg[hwg] = (v.umsatzByHwg[hwg] || 0) + uGes;
+
+        // Display-Umsatz (Heatmap/Legende/Tabelle/Popup-Kategorien) folgt dem
+        // HWG-Filter: Zeilen abgewählter HWGs werden übersprungen. hwg=null
+        // (HWG nicht in der Query) → immer einbuchen (Feature inaktiv).
+        const hwgFiltered = hwg && this._availableHwgs?.size && this._activeHwgs && !this._activeHwgs.has(hwg);
+        if (!hwgFiltered) {
+          if (cat === 'stationaer') { v.umsatz     += uGes; v.umsatzWerbung     += uWrb; v.umsatzZusatz     += uZus; }
+          else if (cat === 'ra')    { v.ra         += uGes; v.raWerbung         += uWrb; v.raZusatz         += uZus; }
+          else if (cat === 'online'){ v.onlineshop += uGes; v.onlineshopWerbung += uWrb; v.onlineshopZusatz += uZus; }
+          else if (cat === 'pluscard'){ v.pluscard += uGes; v.pluscardWerbung   += uWrb; v.pluscardZusatz   += uZus; }
+        }
       }
 
       // Durchschnitte berechnen, Per-Household-Werte ableiten
@@ -7357,6 +7530,7 @@
           // Per-Kategorie-Bons/-Ist für kategorieabhängige Kunden/Ø-Bon.
           kdByCat:        old.kdByCat        ?? {},
           istByCat:       old.istByCat       ?? {},
+          umsatzByHwg:    old.umsatzByHwg    ?? {},
         };
       }
 
@@ -7477,6 +7651,7 @@
       // Merkmal). Dominantes Land der Erhebung (cross-border-fest) → Währung.
       const landTally = {};
       const availCats = new Set();
+      const availHwgs = new Set();
       for (let i = 0, len = filteredData.length; i < len; i++) {
         const row = filteredData[i];
         const __land = this._landOfRow(row); const __bare = this._normalizePLZ(row['dimension_plz_0']?.id, __land); const plz = (__bare && !this._isAggregatePlz(__bare)) ? this._plzKey(__land, __bare) : null;
@@ -7489,6 +7664,13 @@
                        || (Number(row['value_ums_erhebung_0']?.raw) || 0) !== 0
                        || (Number(row['value_hr_n_umsatz_0']?.raw) || 0) !== 0;
           if (anyData) availCats.add(rc);
+        }
+        // Verfügbare HWGs (nur wenn mit Umsatz vorhanden).
+        const rh = mapHwg(row['dimension_hwg_0']?.id);
+        if (rh && !availHwgs.has(rh)) {
+          const anyU = (Number(row['value_hr_n_umsatz_0']?.raw) || 0) !== 0
+                    || (Number(row['value_ums_erhebung_0']?.raw) || 0) !== 0;
+          if (anyU) availHwgs.add(rh);
         }
         const nlKey = row['dimension_niederlassung_0']?.id?.trim();
         const hz = row['dimension_hzflag_0']?.id?.trim() === 'X';
@@ -7523,6 +7705,16 @@
       // falls die Erhebung (unerwartet) keine erkennbare Herkunft liefert.
       this._availableCategories = availCats.size ? availCats : new Set(CATEGORIES);
       this._applyCategoryAvailability();
+      // HWG-Verfügbarkeit übernehmen. Standard: alle verfügbaren aktiv (= kein
+      // Filter). Nur beibehaltene, noch verfügbare Auswahl übernehmen.
+      this._availableHwgs = availHwgs;
+      if (!this._activeHwgs || this._activeHwgs.size === 0) {
+        this._activeHwgs = new Set(availHwgs);
+      } else {
+        for (const h of [...this._activeHwgs]) if (!availHwgs.has(h)) this._activeHwgs.delete(h);
+        if (this._activeHwgs.size === 0) this._activeHwgs = new Set(availHwgs);
+      }
+      this._applyHwgAvailability?.();
     }
 
     // Graut Kategorie-Toggles aus, die in der aktuellen Erhebung nicht
@@ -7540,6 +7732,35 @@
         t.classList.toggle('cat-unavailable', !ok);
         t.classList.toggle('active', ok && this.activeCategories.has(cat));
       });
+    }
+
+    // Graut nicht vorkommende HWG-Buchstaben aus, blendet die ganze Sektion aus
+    // wenn die Erhebung keine HWGs liefert, und synchronisiert die aktiven Chips.
+    _applyHwgAvailability() {
+      const avail = this._availableHwgs || new Set();
+      const section = this.$('hwg-section');
+      if (section) section.classList.toggle('hidden', avail.size === 0);
+      if (!this._activeHwgs) this._activeHwgs = new Set(avail);
+      for (const h of [...this._activeHwgs]) if (!avail.has(h)) this._activeHwgs.delete(h);
+      if (this._activeHwgs.size === 0) this._activeHwgs = new Set(avail);
+      this._shadowRoot?.querySelectorAll('.hwg-chip').forEach(chip => {
+        const h = chip.dataset.hwg;
+        const ok = avail.has(h);
+        chip.classList.toggle('hwg-unavailable', !ok);
+        chip.classList.toggle('active', ok && this._activeHwgs.has(h));
+      });
+      this._syncHwgEnabled();
+    }
+
+    // HWG betrifft nur die Umsatz-Kennzahl (ein Bon umfasst mehrere HWGs) →
+    // bei Ø-Bon/Kunden wird die HWG-Sektion ausgegraut.
+    _syncHwgEnabled() {
+      const section = this.$('hwg-section');
+      if (!section) return;
+      const disabled = this.umsatzKennzahl !== 'umsatz';
+      section.classList.toggle('hwg-disabled', disabled);
+      const hint = this.$('hwg-hint');
+      if (hint) hint.textContent = disabled ? this.t('panel.hwgOnlyRevenue') : this.t('panel.hwgHint');
     }
 
     // Aktuelles Währungssymbol (LOC_CURRCY ist führend). Fallback '€'.
@@ -7575,6 +7796,7 @@
       this._applyI18n(this._shadowRoot);
       // Dropdown-Platzhalter (werden in JS erzeugt) neu setzen
       this._refreshSelectPlaceholders?.();
+      this._syncHwgEnabled?.();   // HWG-Hinweistext in neuer Sprache
       // Dynamische Ansichten neu rendern, soweit relevant/geladen
       if (this._activeFilter) {
         this.updateHeatmapLegend?.();
@@ -9085,6 +9307,10 @@
       this.activeCategories = new Set(CATEGORIES);
       this._availableCategories = new Set(CATEGORIES);
       this._shadowRoot.querySelectorAll('.category-toggle').forEach(t => { t.classList.remove('cat-unavailable'); t.classList.add('active'); });
+      // HWG zurücksetzen: keine Daten im Hauptmenü → Sektion ausblenden.
+      this._availableHwgs = new Set();
+      this._activeHwgs = new Set();
+      this.$('hwg-section')?.classList.add('hidden');
       this.currentMapMode = 'wk'; 
       this.umsatzMainMode = 'gesamt'; this.umsatzDarstellung = 'abs';
       // Bug WA10 Fix: Werbe/Mitgekauft-States sowohl logisch als auch UI-mäßig
