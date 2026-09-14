@@ -178,6 +178,17 @@
       'pp.umsatzIst': 'Umsatz (Ist)', 'pp.kunden': 'Kunden (Bons)', 'pp.bon': 'Ø-Bon',
       'pp.gesamtumsatz': 'Gesamtumsatz', 'pp.tooFewBons': '< {n} Bons',
       'pp.idx': 'Idx',
+      // Vergleich / Abweichung
+      'cmp.title': 'Vergleich',
+      'cmp.intro': 'Zweite Erhebung derselben Einheit wählen — die Karte färbt die Umsatz-Abweichung (A gegen B).',
+      'cmp.pick': 'Vergleichs-Erhebung',
+      'cmp.start': 'Vergleich starten', 'cmp.stop': 'Vergleich beenden',
+      'cmp.none': 'Keine passende Vergleichs-Erhebung derselben Einheit vorhanden.',
+      'cmp.typeLJ': 'Laufendes Jahr', 'cmp.typeSingle': 'Einzelerhebung',
+      'cmp.legendTitle': 'Umsatz-Abweichung (A ↔ B)',
+      'cmp.higher': 'A höher', 'cmp.lower': 'A niedriger', 'cmp.equal': '≈ unverändert', 'cmp.noBase': 'keine Basis',
+      'cmp.active': 'Vergleich aktiv', 'cmp.vs': 'gegen',
+      'cmp.ppA': 'A (aktuell)', 'cmp.ppB': 'B (Vergleich)', 'cmp.ppDelta': 'Abweichung',
     },
     en: {
       'filter.erhebungId': 'Survey ID',
@@ -232,6 +243,16 @@
       'pp.umsatzIst': 'Revenue (actual)', 'pp.kunden': 'Customers (receipts)', 'pp.bon': 'Avg. basket',
       'pp.gesamtumsatz': 'Total revenue', 'pp.tooFewBons': '< {n} receipts',
       'pp.idx': 'idx',
+      'cmp.title': 'Comparison',
+      'cmp.intro': 'Pick a second survey of the same unit — the map colours the revenue deviation (A vs B).',
+      'cmp.pick': 'Comparison survey',
+      'cmp.start': 'Start comparison', 'cmp.stop': 'Stop comparison',
+      'cmp.none': 'No matching comparison survey of the same unit available.',
+      'cmp.typeLJ': 'Running year', 'cmp.typeSingle': 'Single survey',
+      'cmp.legendTitle': 'Revenue deviation (A ↔ B)',
+      'cmp.higher': 'A higher', 'cmp.lower': 'A lower', 'cmp.equal': '≈ unchanged', 'cmp.noBase': 'no basis',
+      'cmp.active': 'Comparison active', 'cmp.vs': 'vs',
+      'cmp.ppA': 'A (current)', 'cmp.ppB': 'B (comparison)', 'cmp.ppDelta': 'Deviation',
     },
   };
 
@@ -2353,6 +2374,35 @@
       .analysis-empty strong { color: var(--gray-700); }
       .analysis-empty ul { margin: 6px 0 0; padding-left: 18px; }
 
+      /* ─── Vergleichs-Modus (Analyse) ─────────────────────────────── */
+      .analysis-hint { font-size: 0.72rem; color: var(--gray-500); line-height: 1.5; margin-bottom: 8px; }
+      .cmp-label { display: block; font-size: 0.68rem; font-weight: 700; color: var(--gray-500);
+                   text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 0 4px; }
+      .cmp-select {
+        width: 100%; padding: 8px 10px; border: 1px solid var(--gray-200);
+        border-radius: var(--radius-md); font-family: var(--font); font-size: 0.82rem;
+        background: var(--white); color: var(--gray-800); margin-bottom: 10px;
+      }
+      .cmp-select:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-shadow); outline: none; }
+      .cmp-btn {
+        width: 100%; padding: 9px 12px; border: none; border-radius: var(--radius-md);
+        background: var(--red); color: var(--white); font-family: var(--font);
+        font-size: 0.82rem; font-weight: 700; cursor: pointer;
+        transition: background 0.15s, transform 0.1s;
+      }
+      .cmp-btn:hover { background: var(--red-dark, #8f1119); }
+      .cmp-btn:active { transform: translateY(1px); }
+      .cmp-btn-stop { background: var(--gray-600); }
+      .cmp-btn-stop:hover { background: var(--gray-700); }
+      .cmp-active-box {
+        background: var(--red-bg); border: 1px solid var(--red-border);
+        border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 10px;
+      }
+      .cmp-active-badge { font-size: 0.66rem; font-weight: 800; color: var(--red);
+                          text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+      .cmp-vs { font-size: 0.8rem; color: var(--gray-700); line-height: 1.5; }
+      .cmp-vs strong { color: var(--red); }
+
       /* Embedded-Picker: wenn Partner-Picker innerhalb einer analysis-section
          lebt, übernimmt diese die Klapp-Funktion → Picker-Header verstecken,
          um Doppel-Akkordeon zu vermeiden. Border auch entfernen weil
@@ -2756,6 +2806,12 @@
       // vorhandene HWGs. Filtert NUR die Umsatz-Kennzahl (nicht Kunden/Ø-Bon).
       this._availableHwgs        = new Set();
       this._activeHwgs           = new Set();
+      // Vergleichs-/Abweichungsmodus (Analyse-Reiter): aktive Erhebung (A) gegen
+      // eine zweite Erhebung (B) derselben Einheit. Karte färbt die Abweichung.
+      this._compareActive        = false;
+      this._compareErh           = null;   // { erhID, jahr, nummer } von B
+      this._compareAValues       = null;   // { plzKey: Umsatz hochger. } von A
+      this._compareBValues       = null;   // { plzKey: Umsatz hochger. } von B
       this.umsatzMainMode        = 'gesamt';
       this.umsatzDarstellung     = 'abs';
       // Kennzahl im Umsatz-Modus: 'umsatz' (Standard) | 'bon' (Ø-Bon) | 'kunden'.
@@ -3971,6 +4027,9 @@
       this.highlightMapArea(key);
       this.highlightTableRowByPLZ(key);
 
+      // Vergleichsmodus: kompaktes A/B/Δ-Popup statt der Normal-Popups.
+      if (this._compareActive) { this._showComparePopup(key); return; }
+
       if (this.currentMapMode === 'umsatz-multi' || this.currentMapMode === 'werbeanteil') {
         const values = this.filteredPLZWerte?.[key];
         if (values) this.showUmsatzPopup(key, values);
@@ -3978,6 +4037,46 @@
       } else {
         this.showPopup(layer.feature, this.filteredKennwerte?.[key] || {}, key);
       }
+    }
+
+    // Kompaktes Vergleichs-Popup: Umsatz A, Umsatz B, absolute + prozentuale
+    // Abweichung. Nutzt den Umsatz-Popup-Container (side-popup-umsatz).
+    _showComparePopup(plz) {
+      const popup = this.$('side-popup-umsatz');
+      if (!popup) return;
+      for (const id of ['side-popup', 'side-popup-overview']) {
+        const el = this.$(id);
+        if (el) { el.classList.remove('show'); el.classList.add('hidden'); }
+      }
+      this._activePopupPLZ = plz; this._activePopupType = 'compare';
+      const cur = this._currencySym();
+      const bare = String(plz).split(':').slice(1).join(':') || String(plz);
+      const a = (this._compareAValues && this._compareAValues[plz]) || 0;
+      const b = (this._compareBValues && this._compareBValues[plz]) || 0;
+      const pct = this._deviationPct(plz);
+      const deltaAbs = a - b;
+      const sign = deltaAbs > 0 ? '+' : '';
+      const pctTxt = pct == null ? '–' : `${pct > 0 ? '+' : ''}${pct.toFixed(1)} %`;
+      const color = this.getDeviationColor(pct);
+      popup.innerHTML = `
+        <div class="popup-header" style="border-left:5px solid ${color}">
+          <div style="overflow:hidden;min-width:0">
+            <span class="detail-badge">${escapeHtml(this.t('cmp.title'))}</span>
+            <div style="font-size:0.97rem;font-weight:700;">PLZ ${escapeHtml(bare)}</div>
+            <div style="font-size:0.68rem;opacity:0.75;font-weight:500;margin-top:2px;">${escapeHtml(this.t('cmp.legendTitle'))}</div>
+          </div>
+          <button class="close-btn" type="button">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:4px 10px;padding:12px 14px;font-size:0.84rem;">
+          <div style="color:var(--gray-600)">${escapeHtml(this.t('cmp.ppA'))}</div>
+          <div style="text-align:right;font-weight:700">${fmtNum(a)} ${cur}</div>
+          <div style="color:var(--gray-600)">${escapeHtml(this.t('cmp.ppB'))}</div>
+          <div style="text-align:right;font-weight:700">${fmtNum(b)} ${cur}</div>
+          <div style="color:var(--gray-600);border-top:1px solid var(--gray-200);padding-top:6px;margin-top:2px">${escapeHtml(this.t('cmp.ppDelta'))}</div>
+          <div style="text-align:right;font-weight:800;color:${color};border-top:1px solid var(--gray-200);padding-top:6px;margin-top:2px">${sign}${fmtNum(deltaAbs)} ${cur}<br><span style="font-size:0.9em">${pctTxt}</span></div>
+        </div>`;
+      popup.classList.remove('hidden'); popup.classList.add('show');
+      this._on(popup.querySelector('.close-btn'), 'click', () => this._onClosePopup(popup));
     }
 
 
@@ -4885,6 +4984,7 @@
       // WK-Modus
       this._on(btnWK, 'click', () => {
         if (this.currentMapMode !== 'wk') this._flashMapTransition();
+        this._clearCompareState();
         this.closeAllPopups();
         btnWK.classList.add('active'); btnUmsatz.classList.remove('active');
         // iOS-Slider-Position: links (Default, ohne switch-right)
@@ -4924,6 +5024,7 @@
       this._on(btnUmsatz, 'click', () => {
         const isModeChange = this.currentMapMode === 'wk';
         if (isModeChange) this._flashMapTransition();
+        this._clearCompareState();
         typeSwitch.classList.remove('active-right'); typeSwitch.classList.add('active-left');
         btnUmsatz.classList.add('active'); btnWK.classList.remove('active');
         // iOS-Slider-Position: rechts
@@ -5175,6 +5276,20 @@
       // Wird die zuletzt markierte Fläche neu gestylt (Reset auf Normalstil),
       // muss der weiße Halo mit verschwinden — sonst bleibt er als Geist liegen.
       if (layer === this._lastHighlightedLayer) this._removeHighlightHalo();
+
+      // Vergleichsmodus: Fläche nach Abweichung A↔B einfärben (unabhängig von
+      // Radius/NL-Filter; grau, wenn für die PLZ keine Vergleichsbasis existiert).
+      if (this._compareActive) {
+        const pct = this._deviationPct(plz);
+        this._removeCriticalMarker(plz);
+        if (pct == null) {
+          layer.setStyle({ fillColor: '#e9ecef', fillOpacity: this._plzFillOpacity('empty'), color: '#ffffff', weight: 0.8 });
+        } else {
+          layer.setStyle({ fillColor: this.getDeviationColor(pct), fillOpacity: this._plzFillOpacity('value'), color: '#ffffff', weight: 0.8 });
+        }
+        return;
+      }
+
       const v   = this.filteredPLZWerte?.[plz];
       const hasRadius = this.plzImRadius instanceof Set && this.plzImRadius.size > 0;
 
@@ -5305,6 +5420,169 @@
       const r = value / max;
       return r > .95 ? '#7a0f17' : r > .85 ? '#9d131b' : r > .75 ? '#b41821' : r > .65 ? '#d9483b' :
              r > .55 ? '#e96a3a' : r > .45 ? '#f08a3c' : r > .35 ? '#f6b65b' : r > .20 ? '#f7d77a' : '#fce9b2';
+    }
+
+    // Erzeugt 9 Legenden-Stufen, exakt an den Schwellen von getDynamicHeatColor
+    // ausgerichtet (0.95/0.85/0.75/0.65/0.55/0.45/0.35/0.20). Jede Stufe trägt
+    // einen repräsentativen Wert (mid), der über getDynamicHeatColor die passende
+    // Farbe liefert, plus ein Bereichs-Label.
+    _heatSteps(max, fmt, unit) {
+      const u = unit ? ' ' + unit : '';
+      const th  = [0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35, 0.20]; // 8 Schwellen → 9 Bänder
+      const mid = [0.98, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.275, 0.10];
+      const steps = [{ v: max * mid[0], label: `&gt; ${fmt(max * th[0])}${u}` }];
+      for (let i = 0; i < th.length - 1; i++) {
+        steps.push({ v: max * mid[i + 1], label: `${fmt(max * th[i + 1])} – ${fmt(max * th[i])}${u}` });
+      }
+      steps.push({ v: max * mid[mid.length - 1], label: `&lt; ${fmt(max * th[th.length - 1])}${u}` });
+      return steps;
+    }
+
+    // ── Vergleichs-/Abweichungsmodus ───────────────────────────────────
+    // Aggregiert den hochgerechneten Umsatz je PLZ für EINE Erhebung (gesamte
+    // Einheit: alle NLs, Kategorien, HWGs) — die Vergleichs-Metrik. Nutzt den
+    // bestehenden Erhebungs-Index (Rows liegen vor, da gleiche Einheit=erhID).
+    _computeCompareValues(erhID, jahr, nummer) {
+      const rows = this._getErhebungRows(erhID, jahr, nummer) || [];
+      const out = {};
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const land = this._landOfRow(row);
+        const bare = this._normalizePLZ(row['dimension_plz_0']?.id, land);
+        if (!bare || this._isAggregatePlz(bare)) continue;
+        const plz = this._plzKey(land, bare);
+        out[plz] = (out[plz] || 0) + (Number(row['value_hr_n_umsatz_0']?.raw) || 0);
+      }
+      return out;
+    }
+
+    // Gültige Vergleichs-Erhebungen: dieselbe Einheit (erhID) wie die aktive,
+    // derselbe Typ (Nr. 0 = laufendes Jahr ↔ nur andere Nr. 0; Nr. > 0 =
+    // Einzelerhebung ↔ nur andere Einzelerhebungen), ohne die aktive selbst.
+    _listCompareCandidates() {
+      const a = this._activeFilter;
+      if (!a || !this._erhebungIndex) return [];
+      const activeIsLJ = String(a.nummer).trim() === '0';
+      const out = [];
+      for (const key of Object.keys(this._erhebungIndex)) {
+        const [eID, yr, nr] = key.split('|');
+        if (eID !== a.erhID) continue;                       // gleiche Einheit
+        const isLJ = String(nr).trim() === '0';
+        if (isLJ !== activeIsLJ) continue;                   // gleicher Typ
+        if (yr === String(a.jahr) && nr === String(a.nummer)) continue; // nicht A selbst
+        out.push({ erhID: eID, jahr: yr, nummer: nr, isLJ });
+      }
+      // Sortierung: Jahr absteigend, dann Nummer aufsteigend.
+      out.sort((x, y) => (Number(y.jahr) - Number(x.jahr)) || (Number(x.nummer) - Number(y.nummer)));
+      return out;
+    }
+
+    // Prozentuale Abweichung A gegenüber B für eine PLZ. null = keine Vergleichsbasis.
+    _deviationPct(plz) {
+      const A = this._compareAValues, B = this._compareBValues;
+      if (!A || !B) return null;
+      const a = A[plz] || 0, b = B[plz] || 0;
+      if (a === 0 && b === 0) return null;      // beide ohne Umsatz → grau
+      if (b === 0) return 100;                  // neu in A (B hatte nichts) → max +
+      return ((a - b) / b) * 100;
+    }
+
+    // Divergierende Farbskala für die Abweichung: Grün = A höher als B,
+    // Grau = ~gleich, Rot = A niedriger. Grenzen ±3/10/25 %.
+    getDeviationColor(pct) {
+      if (pct == null || !Number.isFinite(pct)) return '#cfd4da';
+      if (pct >=  25) return '#1a7a3c';
+      if (pct >=  10) return '#4bab63';
+      if (pct >=   3) return '#a6d96a';
+      if (pct >  -3)  return '#e6e2da';   // ~unverändert
+      if (pct > -10)  return '#f6b65b';
+      if (pct > -25)  return '#e96a3a';
+      return '#b41821';
+    }
+
+    _startCompare(erhID, jahr, nummer) {
+      const a = this._activeFilter;
+      if (!a) return;
+      this._compareErh = { erhID, jahr, nummer };
+      this._compareAValues = this._computeCompareValues(a.erhID, a.jahr, a.nummer);
+      this._compareBValues = this._computeCompareValues(erhID, jahr, nummer);
+      this._compareActive = true;
+      this.closeAllPopups?.();
+      this.updateGeoLayer?.();
+      this.updateHeatmapLegend?.();
+      this._renderAnalysisView?.();
+    }
+
+    _stopCompare() {
+      this._compareActive = false;
+      this._compareErh = null;
+      this._compareAValues = null;
+      this._compareBValues = null;
+      this.closeAllPopups?.();
+      this.updateGeoLayer?.();
+      this.updateHeatmapLegend?.();
+      this._renderAnalysisView?.();
+    }
+
+    // Setzt den Vergleichszustand still zurück (ohne Karten-Rerender) — für
+    // Pfade, die ohnehin neu zeichnen (Moduswechsel, Erhebungswechsel, Home).
+    _clearCompareState() {
+      if (!this._compareActive && !this._compareErh) return;
+      this._compareActive = false;
+      this._compareErh = null;
+      this._compareAValues = null;
+      this._compareBValues = null;
+      if (this._sidebarView === 'analysis') this._renderAnalysisView?.();
+    }
+
+    // Baut den Inhalt der Vergleichs-Sektion (Analyse-Reiter).
+    _fillCompareBody(body) {
+      if (!body) return;
+      const esc = escapeHtml;
+      if (!this._activeFilter) {
+        body.innerHTML = `<div class="analysis-empty">${esc(this.t('cmp.intro'))}</div>`;
+        return;
+      }
+      const label = (c) => c.isLJ
+        ? `${this.t('cmp.typeLJ')} ${esc(c.jahr)}`
+        : `${this.t('cmp.typeSingle')} ${esc(c.jahr)} · Nr. ${esc(c.nummer)}`;
+
+      if (this._compareActive && this._compareErh) {
+        const b = this._compareErh;
+        const bIsLJ = String(b.nummer).trim() === '0';
+        const bLabel = bIsLJ ? `${this.t('cmp.typeLJ')} ${esc(b.jahr)}`
+                             : `${this.t('cmp.typeSingle')} ${esc(b.jahr)} · Nr. ${esc(b.nummer)}`;
+        const a = this._activeFilter;
+        const aIsLJ = String(a.nummer).trim() === '0';
+        const aLabel = aIsLJ ? `${this.t('cmp.typeLJ')} ${esc(a.jahr)}`
+                             : `${this.t('cmp.typeSingle')} ${esc(a.jahr)} · Nr. ${esc(a.nummer)}`;
+        body.innerHTML =
+          `<div class="cmp-active-box">
+             <div class="cmp-active-badge">● ${esc(this.t('cmp.active'))}</div>
+             <div class="cmp-vs"><strong>A</strong> ${aLabel} &nbsp;${esc(this.t('cmp.vs'))}&nbsp; <strong>B</strong> ${bLabel}</div>
+           </div>
+           <button type="button" id="cmp-stop-btn" class="cmp-btn cmp-btn-stop">${esc(this.t('cmp.stop'))}</button>`;
+        this._on(this.$('cmp-stop-btn'), 'click', () => this._stopCompare());
+        return;
+      }
+
+      const cands = this._listCompareCandidates();
+      if (cands.length === 0) {
+        body.innerHTML = `<div class="analysis-empty">${esc(this.t('cmp.none'))}</div>`;
+        return;
+      }
+      const opts = cands.map((c, i) =>
+        `<option value="${i}">${label(c)}</option>`).join('');
+      body.innerHTML =
+        `<div class="analysis-hint">${esc(this.t('cmp.intro'))}</div>
+         <label class="cmp-label">${esc(this.t('cmp.pick'))}</label>
+         <select id="cmp-select" class="cmp-select">${opts}</select>
+         <button type="button" id="cmp-start-btn" class="cmp-btn">${esc(this.t('cmp.start'))}</button>`;
+      this._on(this.$('cmp-start-btn'), 'click', () => {
+        const sel = this.$('cmp-select');
+        const c = cands[Number(sel?.value) || 0];
+        if (c) this._startCompare(c.erhID, c.jahr, c.nummer);
+      });
     }
     getWerbeAnteilColor(ratio) {
       if (!Number.isFinite(ratio) || ratio <= 0) return '#cfd4da';
@@ -6374,6 +6652,7 @@
 
     _rerenderActivePopup() {
       if (!this._activePopupPLZ) return;
+      if (this._activePopupType === 'compare') { this._showComparePopup(this._activePopupPLZ); return; }
       if (this._activePopupType === 'overview') { this.showOverviewPopup(); return; }
       const plz = this._activePopupPLZ;
       if (this._activePopupType === 'umsatz' ||
@@ -7881,6 +8160,22 @@
       const legend = this.$('heatmap-legend');
       if (!legend) return;
       const cur = this._currencySym();
+
+      // Vergleichsmodus: divergierende Abweichungs-Legende (A ↔ B).
+      if (this._compareActive) {
+        const row = (c, t) => `<div class="heatmap-legend-row"><div class="heatmap-legend-color" style="background:${c}"></div><span>${t}</span></div>`;
+        legend.innerHTML = `<strong>${this.t('cmp.legendTitle')}</strong>` +
+          row('#1a7a3c', `${this.t('cmp.higher')} &gt; +25 %`) +
+          row('#4bab63', '+10 … +25 %') +
+          row('#a6d96a', '+3 … +10 %') +
+          row('#e6e2da', this.t('cmp.equal')) +
+          row('#f6b65b', '−3 … −10 %') +
+          row('#e96a3a', '−10 … −25 %') +
+          row('#b41821', `${this.t('cmp.lower')} &lt; −25 %`) +
+          row('#e9ecef', this.t('cmp.noBase'));
+        legend.classList.remove('hidden');
+        return;
+      }
       if (!this._activeFilter || !this.filteredPLZWerte ||
           Object.keys(this.filteredPLZWerte).length === 0 ||
           !this.currentMapMode) {
@@ -7937,14 +8232,7 @@
           if (max === 0) { legend.classList.add('hidden'); return; }
           const dec = perHH ? 2 : 0;
           const fmt = (x) => nfmt(x, { maximumFractionDigits: dec });
-          const steps = [
-            { v: max,     label: `&gt; ${fmt(max*0.95)}` },
-            { v: max*.85, label: `${fmt(max*0.65)} – ${fmt(max*0.85)}` },
-            { v: max*.65, label: `${fmt(max*0.45)} – ${fmt(max*0.65)}` },
-            { v: max*.45, label: `${fmt(max*0.20)} – ${fmt(max*0.45)}` },
-            { v: max*.20, label: `${fmt(max*0.10)} – ${fmt(max*0.20)}` },
-            { v: 0,       label: `&lt; ${fmt(max*0.10)}` },
-          ];
+          const steps = this._heatSteps(max, fmt, '');
           legend.innerHTML = `<strong>${perHH ? this.t('legend.kundenHH') : this.t('legend.kunden')}</strong>` +
             steps.map(s => row(this.getDynamicHeatColor(s.v, max), s.label)).join('');
           legend.classList.remove('hidden'); return;
@@ -7960,14 +8248,7 @@
         }
         if (max === 0) { legend.classList.add('hidden'); return; }
         const fmt = (x) => nfmt(x, { maximumFractionDigits: 0 });
-        const steps = [
-          { v: max,       label: `&gt; ${fmt(max*0.95)} ${cur}` },
-          { v: max*.85,   label: `${fmt(max*0.75)} – ${fmt(max*0.85)} ${cur}` },
-          { v: max*.65,   label: `${fmt(max*0.55)} – ${fmt(max*0.65)} ${cur}` },
-          { v: max*.45,   label: `${fmt(max*0.35)} – ${fmt(max*0.45)} ${cur}` },
-          { v: max*.20,   label: `${fmt(max*0.10)} – ${fmt(max*0.20)} ${cur}` },
-          { v: 0,         label: `&lt; ${fmt(max*0.10)} ${cur}` },
-        ];
+        const steps = this._heatSteps(max, fmt, cur);
         legend.innerHTML = `<strong>${this.t('legend.umsatz')}</strong>` +
           steps.map(s => row(this.getDynamicHeatColor(s.v, max), s.label)).join('');
         legend.classList.remove('hidden'); return;
@@ -8403,6 +8684,8 @@
       this._renderToken = (this._renderToken || 0) + 1;
 
       this._activeFilter = { erhID, jahr, nummer };
+      // Neuer Erhebungskontext → alten Vergleich verwerfen (A/B wären veraltet).
+      this._clearCompareState();
       // Erhebung aktiv → PLZ-Flächen wieder einblenden (Level-of-Detail).
       this._applyDetailVisibility();
       // Filter-Maske einklappen — _activeFilter muss vorher gesetzt sein
@@ -8772,31 +9055,17 @@
       compareSection.innerHTML = `
         <div class="analysis-section-header">
           <span class="analysis-section-icon">📈</span>
-          <span class="analysis-section-title">Vergleich</span>
-          <span class="analysis-section-status">In Entwicklung</span>
+          <span class="analysis-section-title">${escapeHtml(this.t('cmp.title'))}</span>
           <span class="analysis-section-chevron">▾</span>
         </div>
-        <div class="analysis-section-body">
-          <div class="analysis-empty">
-            Hier kommt der <strong>Vergleichs-Modus</strong> hin: zwei oder mehr
-            Erhebungen mit unterschiedlichem Jahr/Nummer/GF-Bereich nebeneinander
-            mit Diff-Heatmap auf der Karte und A/B/Δ-Spalten in der Tabelle.
-            <br><br>
-            Geplante Funktionen:
-            <ul style="margin-top:6px;padding-left:18px;">
-              <li>Erhebung A vs. Erhebung B auswählen</li>
-              <li>Diff-Heatmap (rot = verschlechtert, grün = verbessert)</li>
-              <li>Bestreuungs-Differential (4-Farben-Karte)</li>
-              <li>Tabelle mit A/B/Δ-Spalten</li>
-            </ul>
-          </div>
-        </div>`;
+        <div class="analysis-section-body" id="analysis-compare-body"></div>`;
       inner.appendChild(compareSection);
       const cmpHeader = compareSection.querySelector('.analysis-section-header');
       this._on(cmpHeader, 'click', () => {
         compareSection.classList.toggle('open');
         openState.compare = compareSection.classList.contains('open');
       });
+      this._fillCompareBody(compareSection.querySelector('#analysis-compare-body'));
 
       container.appendChild(inner);
     }
@@ -9367,6 +9636,7 @@
       // HWG zurücksetzen: keine Daten im Hauptmenü → Sektion ausblenden.
       this._availableHwgs = new Set();
       this._activeHwgs = new Set();
+      this._clearCompareState();
       this.$('hwg-section')?.classList.add('hidden', 'collapsed');
       this.$('hwg-head')?.setAttribute('aria-expanded', 'false');
       this.$('hwg-count') && (this.$('hwg-count').textContent = '');
