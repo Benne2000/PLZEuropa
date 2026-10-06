@@ -1071,6 +1071,15 @@
         color: var(--red);
         font-weight: 700;
       }
+      /* NL ohne eigene Erhebung: Umsatz nur unter PLZ 00000 (als Gesamt angerechnet). */
+      .nl-aggregat-tag {
+        display: inline-block; margin-left: 5px; cursor: help;
+        font-size: 0.64em; font-weight: 700; letter-spacing: 0.02em;
+        color: var(--gray-500); background: var(--gray-100);
+        border: 1px solid var(--gray-200); border-radius: 100px;
+        padding: 1px 6px; vertical-align: middle; white-space: nowrap;
+      }
+      .nl-info-row td.nl-nur-aggregat { color: var(--gray-700); }
       .nl-pct-warn {
         display: inline-block;
         font-size: 0.85em;
@@ -6967,7 +6976,7 @@
       const erhData = this._getAllActiveRows();
       if (!erhData.length) return;
 
-      const jahresumsatz = {}, erfasst_total = {}, erfasst_valid = {};
+      const jahresumsatz = {}, erfasst_total = {}, erfasst_valid = {}, aggregat_ist = {};
       // Welcher NL gehört zu welcher Erhebung? Wichtig für UI-Gruppierung.
       const nlToErh = {};
       for (const row of erhData) {
@@ -6979,17 +6988,27 @@
         jahresumsatz[nl]  ||= 0;
         erfasst_total[nl] ||= 0;
         erfasst_valid[nl] ||= 0;
+        aggregat_ist[nl]  ||= 0;
         erfasst_total[nl] += uE;
         if (__valid) { jahresumsatz[nl] += uJ; erfasst_valid[nl] += uE; }
+        else         { aggregat_ist[nl] += uE; }   // 00000/Aggregat: IST-Wert separat
         if (!nlToErh[nl]) nlToErh[nl] = row['dimension_erhebung_0']?.id?.trim();
       }
       for (const nl of Object.keys(erfasst_total)) {
-        const j = jahresumsatz[nl]  || 0;
+        let j = jahresumsatz[nl]  || 0;
         const t = erfasst_total[nl] || 0;
         const v = erfasst_valid[nl] || 0;
+        // NLs ohne eigene Erhebung haben keinen gültigen PLZ-Umsatz UND keine
+        // Hochrechnung — ihr Umsatz liegt komplett als IST unter PLZ "00000".
+        // Diesen IST-Betrag als Gesamt anrechnen, sonst erschiene die NL mit 0
+        // und ihr Umsatz würde in der Übersicht verschluckt. NLs MIT gültiger
+        // PLZ bleiben unverändert (ihr 00000-Rest ist ein DQ-Hinweis, s. ⚠️).
+        const nurAggregat = j === 0 && (aggregat_ist[nl] || 0) !== 0;
+        if (nurAggregat) j = aggregat_ist[nl];
         this.erhebungsInfo[nl] = {
           nl, erhID: nlToErh[nl],
           jahresumsatz: j, erfasst_total: t, erfasst_valid: v,
+          nurAggregat,
           pct_erfassung:   j > 0 ? t / j : 0,
           pct_valid:       t > 0 ? v / t : 0,
           pct_hochrechnung: j > 0 ? v / j : 0,
@@ -7085,9 +7104,15 @@
       // Umsatz der keiner gültigen PLZ zugeordnet werden konnte (PLZ "00000"
       // im Roh-Datensatz). Visuell markieren, sodass der User die NL als
       // verdächtig erkennen kann. Aggregation bleibt unverändert.
-      const erfassungInvalid = info.pct_erfassung > 1.005;
+      // Bei NLs ohne eigene Erhebung (nur 00000) ist "erfasst = Jahresumsatz"
+      // erwartbar — die 100%+-Warnung gilt hier NICHT.
+      const erfassungInvalid = !info.nurAggregat && info.pct_erfassung > 1.005;
+      const nlCell = info.nurAggregat
+        ? { text: info.nl, cls: 'nl-nur-aggregat',
+            html: `${escapeHtml(info.nl)} <span class="nl-aggregat-tag" title="Keine eigene Erhebung / keine Hochrechnung — der IST-Umsatz unter PLZ 00000 wird als Gesamt angerechnet.">∑ 00000</span>` }
+        : { text: info.nl, cls: '' };
       const cells = [
-        { text: info.nl, cls: '' },
+        nlCell,
         { text: Math.round(info.jahresumsatz).toLocaleString('de-DE'), cls: '' },
         {
           text: Math.round(info.erfasst_valid).toLocaleString('de-DE'),
