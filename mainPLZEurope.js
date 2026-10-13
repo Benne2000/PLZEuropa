@@ -4442,14 +4442,9 @@
       if (!this.streuverlust) { box.innerHTML = ''; return; }
       const cur = this._currencySym();
 
-      let totalInRadius = 0;
-      if (this.filteredKennwerte) {
-        for (const [plz, k] of Object.entries(this.filteredKennwerte)) {
-          if (!this.plzImRadius || this.plzImRadius.size === 0 || this.plzImRadius.has(plz)) {
-            totalInRadius += k['value_hr_n_umsatz_0']?.raw ?? 0;
-          }
-        }
-      }
+      // "Ges." = Umsatz im Radius, aus computeStreuverlust übernommen — dadurch
+      // konsistent mit dem Streuverlust (gleicher Kategorie- + NL-Filter).
+      const totalInRadius = this.streuverlust.totalInRadius ?? 0;
       box.innerHTML =
         `<span><strong>${this.t('foot.streuverlust')}:</strong> ${fmtNum(this.streuverlust.umsatz)} ${cur}
           &nbsp;·&nbsp; ${(this.streuverlust.anteil * 100).toFixed(1)} %</span>
@@ -4458,9 +4453,25 @@
          </span>`;
     }
 
+    // True, wenn KEIN Kategorie-Filter aktiv ist (alle verfügbaren Kategorien
+    // ausgewählt). Dann zählen auch kategorielose Zeilen mit.
+    _noCategoryNarrowing() {
+      const avail = this._availableCategories;
+      if (!avail || avail.size === 0) return true;       // keine Kategorie-Info → nicht filtern
+      for (const c of avail) if (!this.activeCategories?.has(c)) return false;
+      return true;
+    }
+    // True, wenn die Umsatzherkunft einer Zeile zu den aktiven Kategorien zählt.
+    // Kategorielose Zeilen (z.B. reine Aggregate) nur bei inaktivem Filter.
+    _rowCategoryActive(row) {
+      const cat = mapUmsatzQuelle(row['dimension_plz_quelle_0']?.id);
+      if (cat == null) return this._noCategoryNarrowing();
+      return this.activeCategories ? this.activeCategories.has(cat) : true;
+    }
+
     computeStreuverlust() {
       if (!this.filteredData) return;
-      let streuverlustUmsatz = 0, totalErhebungUmsatz = 0;
+      let streuverlustUmsatz = 0, totalErhebungUmsatz = 0, inRadiusUmsatz = 0;
       const selNLs = this._selectedNLs;
       const radius = this.plzImRadius;
       const hasNL   = selNLs && selNLs.size > 0;
@@ -4470,6 +4481,8 @@
         const row = data[i];
         const nl  = row['dimension_niederlassung_0']?.id?.trim();
         if (hasNL && !selNLs.has(nl)) continue;
+        // NEU: Streuverlust folgt dem Kategorie-Filter (zusätzlich zum NL-Filter).
+        if (!this._rowCategoryActive(row)) continue;
         const __land = this._landOfRow(row); const __bare = this._normalizePLZ(row['dimension_plz_0']?.id ?? row['dimension_plz_0']?.raw, __land); const plz = (__bare && !this._isAggregatePlz(__bare)) ? this._plzKey(__land, __bare) : null;
         if (!plz) continue;
         // Bug-Fix B38: PLZ='00000' sind Stammdaten-Aggregate ohne PLZ-Zuordnung.
@@ -4478,6 +4491,7 @@
         const umsatz = row['value_hr_n_umsatz_0']?.raw ?? 0;
         totalErhebungUmsatz += umsatz;
         if (!hasRad || !radius.has(plz)) streuverlustUmsatz += umsatz;
+        if (!hasRad ||  radius.has(plz)) inRadiusUmsatz     += umsatz;
       }
       // Domain-Frage 3 (geklärt): negative Saldo-Summen werden zu 0
       // normalisiert. Einzelne Storno-Rows fließen vorher mit ihrem Vorzeichen
@@ -4487,7 +4501,10 @@
       const sumTotal = totalErhebungUmsatz > 0 ? totalErhebungUmsatz : 0;
       this.streuverlust = {
         umsatz: sumStreu,
-        anteil: sumTotal > 0 ? sumStreu / sumTotal : 0
+        anteil: sumTotal > 0 ? sumStreu / sumTotal : 0,
+        // Umsatz im Radius (bzw. gesamt ohne Radius) — ebenfalls Kategorie+NL-
+        // gefiltert, damit die Fußzeile konsistent ist.
+        totalInRadius: inRadiusUmsatz > 0 ? inRadiusUmsatz : 0,
       };
     }
 
@@ -6982,6 +6999,9 @@
       for (const row of erhData) {
         const nl = row['dimension_niederlassung_0']?.id?.trim();
         if (!nl) continue;
+        // NEU: Übersichts-Tabelle folgt dem Kategorie-Filter. Zeilen abgewählter
+        // Umsatzherkünfte zählen weder in Gesamt noch in die Erfassungsquote.
+        if (!this._rowCategoryActive(row)) continue;
         const __land = this._landOfRow(row); const __bare = this._normalizePLZ(row['dimension_plz_0']?.id ?? row['dimension_plz_0']?.raw, __land); const __valid = !!(__bare && !this._isAggregatePlz(__bare));
         const uJ = row['value_hr_n_umsatz_0']?.raw ?? 0;
         const uE = row['value_ums_erhebung_0']?.raw ?? 0;
@@ -7980,6 +8000,13 @@
       this.updateGeoLayer();
       this.updateHeatmapLegend();
       this.renderDataTable(this.filteredKennwerte);
+      // Übersichts-Tabelle folgt dem Kategorie-Filter → neu aufbauen, wenn sie
+      // gerade sichtbar ist (die Kategorie-Toggles liegen im Karten-Panel und
+      // sind auch im Übersichts-Reiter erreichbar).
+      if (this._sidebarView === 'overview') {
+        this.prepareErhebungsInfo();
+        this.renderErhebungsInfoTable();
+      }
       // Offene Popups aktualisiert _rerenderActivePopup() (wird direkt nach
       // _refreshAll in refreshMapAndPopup aufgerufen) — hier NICHT das
       // Übersichts-Popup aufreißen, sonst geht es bei jedem Button-Klick auf.
