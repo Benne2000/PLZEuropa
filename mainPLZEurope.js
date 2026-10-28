@@ -187,7 +187,7 @@
       'cmp.typeLJ': 'Laufendes Jahr', 'cmp.typeSingle': 'Einzelerhebung',
       'cmp.legendTitle': 'Umsatz-Abweichung (A ↔ B)',
       'cmp.higher': 'A höher', 'cmp.lower': 'A niedriger', 'cmp.equal': '≈ unverändert', 'cmp.noBase': 'keine Basis',
-      'cmp.active': 'Vergleich aktiv', 'cmp.vs': 'gegen',
+      'cmp.active': 'Vergleich aktiv', 'cmp.vs': 'gegen', 'cmp.loading': 'Vergleichsdaten werden geladen …', 'cmp.loadError': 'Für die gewählte Erhebung konnten keine Vergleichsdaten geladen werden.',
       'cmp.ppA': 'A (aktuell)', 'cmp.ppB': 'B (Vergleich)', 'cmp.ppDelta': 'Abweichung',
     },
     en: {
@@ -251,7 +251,7 @@
       'cmp.typeLJ': 'Running year', 'cmp.typeSingle': 'Single survey',
       'cmp.legendTitle': 'Revenue deviation (A ↔ B)',
       'cmp.higher': 'A higher', 'cmp.lower': 'A lower', 'cmp.equal': '≈ unchanged', 'cmp.noBase': 'no basis',
-      'cmp.active': 'Comparison active', 'cmp.vs': 'vs',
+      'cmp.active': 'Comparison active', 'cmp.vs': 'vs', 'cmp.loading': 'Loading comparison data …', 'cmp.loadError': 'No comparison data could be loaded for the selected survey.',
       'cmp.ppA': 'A (current)', 'cmp.ppB': 'B (comparison)', 'cmp.ppDelta': 'Deviation',
     },
   };
@@ -283,6 +283,16 @@
   const PLZ_MIN_ZOOM     = 6;
 
   const isNull = v => v == null || NULL_TOKENS.has(v);
+  // BW liefert eine Aggregat-/Ergebniszeile (Label "Ergebnis"/"Result" bzw.
+  // @TotalMembers) auf der Erhebungsnummer. Gültige Nummern sind rein numerisch
+  // ("0" = laufendes Jahr, sonst lange Ziffernfolgen). Alles andere ist ein
+  // Aggregat und darf weder in Dropdowns/Index noch als Vergleichs-Kandidat
+  // auftauchen.
+  const isAggregateNummer = (nr) => {
+    if (nr == null) return true;
+    const s = String(nr).trim();
+    return s === '' || !/^\d+$/.test(s);
+  };
 
   // ── Streuplan-Fallback (analog Mitbewerber-Fallback) ─────────────────
   const STREUPLAN_FALLBACK = {"termine":[{"datum":"2026-01-31","kw":6,"beschreibung":"16-Seiter A4"},{"datum":"2026-02-28","kw":10,"beschreibung":"32-Seiter A4"},{"datum":"2026-03-28","kw":14,"beschreibung":"32-Seiter A4"},{"datum":"2026-04-11","kw":16,"beschreibung":"16-Seiter A4"},{"datum":"2026-05-02","kw":19,"beschreibung":"24-Seiter A4"},{"datum":"2026-05-16","kw":21,"beschreibung":"16-Seiter A4"},{"datum":"2026-05-30","kw":23,"beschreibung":"24-Seiter A4"},{"datum":"2026-07-18","kw":30,"beschreibung":"8-Seiter A4"},{"datum":"2026-08-29","kw":36,"beschreibung":"16-Seiter A4"},{"datum":"2026-09-12","kw":38,"beschreibung":"16-Seiter A4"},{"datum":"2026-10-02","kw":41,"beschreibung":"40-Seiter A4"},{"datum":"2026-10-30","kw":45,"beschreibung":"24-Seiter A4"},{"datum":"2026-11-28","kw":49,"beschreibung":"32-Seiter A4"}],"partner":[{"haupt_nl":"Kiel-Suchsdorf","haupt_nl_id":571,"partner_nls":[{"id":853,"name":"Kiel-Ravensberg"},{"id":634,"name":"Schwentinental-Raisdorf"}]},{"haupt_nl":"Lübeck","haupt_nl_id":639,"partner_nls":[{"id":534,"name":"Lübeck-St. Jürgen"},{"id":864,"name":"Lübeck-Moisling"}]},{"haupt_nl":"Bremen","haupt_nl_id":647,"partner_nls":[{"id":553,"name":"Stuhr-Groß-Mackenstedt"},{"id":863,"name":"Bremen-Osterholz (Weserpark)"}]},{"haupt_nl":"Dortmund","haupt_nl_id":573,"partner_nls":[{"id":509,"name":"Dortmund-Aplerbeck"}]},{"haupt_nl":"Bochum Harpen","haupt_nl_id":519,"partner_nls":[{"id":648,"name":"Bochum-Hofstede"}]},{"haupt_nl":"Wuppertal-Barmen (Lichtscheid)","haupt_nl_id":868,"partner_nls":[{"id":617,"name":"Wuppertal"}]},{"haupt_nl":"Krefeld-Mevissenstraße","haupt_nl_id":633,"partner_nls":[{"id":541,"name":"Krefeld-Untergath"}]},{"haupt_nl":"Aachen","haupt_nl_id":586,"partner_nls":[{"id":613,"name":"Würselen"}]},{"haupt_nl":"Hamburg-Bergedorf","haupt_nl_id":620,"partner_nls":[{"id":619,"name":"Hamburg-Harburg"},{"id":851,"name":"Hamburg-Wandsbek"},{"id":595,"name":"Hamburg-Moorfleet"},{"id":663,"name":"Hamburg-Bramfeld"},{"id":858,"name":"Hamburg-Langenhorn"},{"id":664,"name":"Hamburg-Stellingen"},{"id":654,"name":"Hamburg-Lokstedt"},{"id":865,"name":"Hamburg-Lurup"},{"id":624,"name":"Barsbüttel"}]},{"haupt_nl":"Berlin-Charlottenburg","haupt_nl_id":812,"partner_nls":[{"id":643,"name":"Berlin-Kurfürstendamm"},{"id":840,"name":"Berlin Am Wittenbergplatz"},{"id":814,"name":"Berlin Am Hermannplatz"},{"id":597,"name":"Berlin-Schöneberg"},{"id":894,"name":"Berlin-Steglitz"},{"id":604,"name":"Berlin-Marienfelde"},{"id":866,"name":"Berlin-Treptow"},{"id":578,"name":"Berlin-Pankow"},{"id":656,"name":"Berlin-Wedding"},{"id":850,"name":"Berlin-Wittenau"},{"id":596,"name":"Berlin-Spandau Brunsbütteler Damm"},{"id":623,"name":"Berlin-Spandau"}]},{"haupt_nl":"Wildau","haupt_nl_id":605,"partner_nls":[{"id":565,"name":"Mahlow"},{"id":577,"name":"Birkenwerder"}]},{"haupt_nl":"Karlsruhe-Oststadt","haupt_nl_id":852,"partner_nls":[{"id":330,"name":"Karlsruhe-Südstadt"},{"id":525,"name":"Karlsruhe-Mühlburg"}]},{"haupt_nl":"Stuttgart","haupt_nl_id":871,"partner_nls":[{"id":631,"name":"Stuttgart-Untertürkheim"},{"id":626,"name":"Stuttgart-Möhringen"}]},{"haupt_nl":"Augsburg-Oberhausen","haupt_nl_id":862,"partner_nls":[{"id":515,"name":"Augsburg"},{"id":632,"name":"Augsburg-Lechhausen"},{"id":548,"name":"Gersthofen"}]},{"haupt_nl":"Kassel","haupt_nl_id":658,"partner_nls":[{"id":603,"name":"Fuldabrück"}]},{"haupt_nl":"Mainz-Mombach","haupt_nl_id":854,"partner_nls":[{"id":614,"name":"Mainz"}]},{"haupt_nl":"Mannheim","haupt_nl_id":655,"partner_nls":[{"id":583,"name":"Mannheim-Mallau"},{"id":557,"name":"Mannheim-Waldhof"},{"id":897,"name":"Mannheim-Columbus"}]},{"haupt_nl":"Dillingen","haupt_nl_id":585,"partner_nls":[{"id":622,"name":"Ensdorf"}]},{"haupt_nl":"Essen-Frillendorf","haupt_nl_id":539,"partner_nls":[{"id":505,"name":"Essen-Frohnhausen"}]},{"haupt_nl":"München","haupt_nl_id":520,"partner_nls":[{"id":870,"name":"München-Freimann"}]},{"haupt_nl":"Braunschweig","haupt_nl_id":607,"partner_nls":[{"id":630,"name":"Braunschweig-Stöckheim"}]}]};
@@ -2821,6 +2831,7 @@
       this._compareErh           = null;   // { erhID, jahr, nummer } von B
       this._compareAValues       = null;   // { plzKey: Umsatz hochger. } von A
       this._compareBValues       = null;   // { plzKey: Umsatz hochger. } von B
+      this._comparePendingB      = null;   // B, dessen Daten gerade nachgeladen werden
       this.umsatzMainMode        = 'gesamt';
       this.umsatzDarstellung     = 'abs';
       // Kennzahl im Umsatz-Modus: 'umsatz' (Standard) | 'bon' (Ø-Bon) | 'kunden'.
@@ -3377,6 +3388,7 @@
         const yr  = row['dimension_jahr_0']?.id?.trim();
         const nr  = row['dimension_erhebungsnummer_0']?.id?.trim();
         if (isNull(eID) || isNull(yr) || isNull(nr)) continue;
+        if (isAggregateNummer(nr)) continue;   // "Ergebnis"-Aggregat nie indexieren
         if (this._erhebungLand[eID] === undefined) this._erhebungLand[eID] = this._landOfRow(row);
         // Fremd-Erhebung (= nicht in der aktiven Liste): nur HZ=X Rows speichern
         if (hasActiveFilter && !activeSet.has(eID)) {
@@ -3545,6 +3557,7 @@
         const jahr  = row['dimension_jahr_0']?.id?.trim();
         const nr    = row['dimension_erhebungsnummer_0']?.id?.trim();
         if (isNull(erhID) || isNull(jahr) || isNull(nr)) continue;
+        if (isAggregateNummer(nr)) continue;   // "Ergebnis"-Aggregat ausschließen
         (struktur[erhID] ||= {});
         (struktur[erhID][jahr] ||= new Set()).add(nr);
       }
@@ -3632,6 +3645,9 @@
       if (!this._doppelbestreuungAktiv) {
         const kE = this._trySetFilter(ds, ERH_FILTER_KEYS,    erhIDs);
         const kJ = this._trySetFilter(ds, JAHR_FILTER_KEYS,   [jahr]);
+        // Standard: schlankes Laden nur der aktiven Erhebungsnummer (schnellste
+        // Ladezeit). Für den Vergleich wird die zweite Nummer erst bei Auswahl
+        // nachgeladen (_loadCompareData → setzt Filter auf [A, B]).
         const kN = this._trySetFilter(ds, NUMMER_FILTER_KEYS, [nummer]);
         this._erhIDFilterKey  = kE;
         this._jahrFilterKey   = kJ;
@@ -3728,6 +3744,7 @@
         const yr  = row['dimension_jahr_0']?.id?.trim();
         const nr  = row['dimension_erhebungsnummer_0']?.id?.trim();
         if (isNull(eID) || isNull(yr) || isNull(nr)) continue;
+        if (isAggregateNummer(nr)) continue;   // "Ergebnis"-Aggregat nie indexieren
         if (this._erhebungLand[eID] === undefined) this._erhebungLand[eID] = this._landOfRow(row);
         const k = eID + '|' + yr + '|' + nr;
         (idx[k] ||= []).push(row);
@@ -5487,15 +5504,22 @@
     // Einzelerhebung ↔ nur andere Einzelerhebungen), ohne die aktive selbst.
     _listCompareCandidates() {
       const a = this._activeFilter;
-      if (!a || !this._erhebungIndex) return [];
+      // Kandidaten aus dem Bootstrap-Cache (PLZ=00000-Struktur, _erhData) — dort
+      // sind ALLE Erhebungen/Nummern bekannt, auch wenn aktuell nur die aktive
+      // Nummer geladen ist. B-Daten werden erst bei Auswahl nachgeladen.
+      const struktur = this._erhData;
+      if (!a || !struktur || !struktur[a.erhID]) return [];
       const activeIsLJ = String(a.nummer).trim() === '0';
       const aYear = String(a.jahr);
       const out = [];
-      for (const key of Object.keys(this._erhebungIndex)) {
-        const [eID, yr, nr] = key.split('|');
-        if (eID !== a.erhID) continue;                       // gleiche Einheit
+      const byYear = struktur[a.erhID];
+      for (const yr of Object.keys(byYear)) {
+        const nummern = byYear[yr] instanceof Set ? [...byYear[yr]] : (byYear[yr] || []);
+        for (const nrRaw of nummern) {
+        const nr = String(nrRaw).trim();
+        if (isAggregateNummer(nr)) continue;                 // kein "Ergebnis"-Aggregat
         if (yr === aYear && nr === String(a.nummer)) continue; // nicht A selbst
-        const isLJ = String(nr).trim() === '0';
+        const isLJ = nr === '0';
         let ok;
         if (activeIsLJ) {
           // Laufendes Jahr vergleicht mit (a) anderen laufenden Jahren
@@ -5509,7 +5533,8 @@
           ok = !isLJ;
         }
         if (!ok) continue;
-        out.push({ erhID: eID, jahr: yr, nummer: nr, isLJ });
+        out.push({ erhID: a.erhID, jahr: yr, nummer: nr, isLJ });
+        }
       }
       // Sortierung: Jahr absteigend, dann Nummer aufsteigend.
       out.sort((x, y) => (Number(y.jahr) - Number(x.jahr)) || (Number(x.nummer) - Number(y.nummer)));
@@ -5543,8 +5568,46 @@
       const a = this._activeFilter;
       if (!a) return;
       this._compareErh = { erhID, jahr, nummer };
+      this._comparePendingB = { erhID, jahr, nummer };
+      // Liegen B's Daten schon im Index (z.B. zuvor schon mal verglichen)? Dann
+      // direkt fertigstellen, kein BW-Nachladen nötig.
+      const already = (this._getErhebungRows(erhID, jahr, nummer) || []).length > 0;
+      if (already) { this._finishCompareLoad(); return; }
+      // Sonst B-Daten per BW nachladen: Nummer-Filter auf [A, B] erweitern. Die
+      // Anzeige bleibt über _getAllActiveRows() auf A; nur der Index bekommt B
+      // dazu. Nach dem Reload berechnet _finishCompareLoad() die B-Werte.
+      this._renderAnalysisView?.();   // zeigt "lädt…"
+      const ds = this._getDataSource?.();
+      if (ds && !this._doppelbestreuungAktiv) {
+        this._trySetFilter(ds, NUMMER_FILTER_KEYS, [String(a.nummer), String(nummer)]);
+        this._nummerFilterKey = this._nummerFilterKey || NUMMER_FILTER_KEYS[0];
+        this._filterSwitchTime = Date.now();
+        this._filterSwitchLockUntil = Date.now() + 2000;
+        this._fullDataLoaded = true;      // Phase-2-Poll (kein Bootstrap)
+        this._erhebungIndex = null;       // Index mit [A,B] neu aufbauen
+        if (!this._renderInProgress && !this._dataPollTimer) this._scheduleDataPoll();
+      } else {
+        // Kein BW erreichbar / Doppelbestreuungsmodus: direkt versuchen.
+        this._finishCompareLoad();
+      }
+    }
+
+    // Wird nach dem BW-Reload (render → rAF) aufgerufen: B liegt jetzt im Index.
+    _finishCompareLoad() {
+      const b = this._comparePendingB;
+      this._comparePendingB = null;
+      const a = this._activeFilter;
+      if (!b || !a) { this._renderAnalysisView?.(); return; }
       this._compareAValues = this._computeCompareValues(a.erhID, a.jahr, a.nummer);
-      this._compareBValues = this._computeCompareValues(erhID, jahr, nummer);
+      this._compareBValues = this._computeCompareValues(b.erhID, b.jahr, b.nummer);
+      // Schutz: keine B-Daten geladen → Vergleich nicht aktivieren, Hinweis zeigen.
+      if (!this._compareBValues || Object.keys(this._compareBValues).length === 0) {
+        this._compareActive = false;
+        this._compareLoadError = true;
+        this._renderAnalysisView?.();
+        return;
+      }
+      this._compareLoadError = false;
       this._compareActive = true;
       this.closeAllPopups?.();
       this.updateGeoLayer?.();
@@ -5555,6 +5618,7 @@
     _stopCompare() {
       this._compareActive = false;
       this._compareErh = null;
+      this._comparePendingB = null;
       this._compareAValues = null;
       this._compareBValues = null;
       this.closeAllPopups?.();
@@ -5566,9 +5630,11 @@
     // Setzt den Vergleichszustand still zurück (ohne Karten-Rerender) — für
     // Pfade, die ohnehin neu zeichnen (Moduswechsel, Erhebungswechsel, Home).
     _clearCompareState() {
-      if (!this._compareActive && !this._compareErh) return;
+      if (!this._compareActive && !this._compareErh && !this._comparePendingB) return;
       this._compareActive = false;
       this._compareErh = null;
+      this._comparePendingB = null;
+      this._compareLoadError = false;
       this._compareAValues = null;
       this._compareBValues = null;
       if (this._sidebarView === 'analysis') this._renderAnalysisView?.();
@@ -5585,6 +5651,12 @@
       const label = (c) => c.isLJ
         ? `${this.t('cmp.typeLJ')} ${esc(c.jahr)}`
         : `${this.t('cmp.typeSingle')} ${esc(c.jahr)} · Nr. ${esc(c.nummer)}`;
+
+      // Ladezustand: B wird gerade nachgeladen.
+      if (this._comparePendingB) {
+        body.innerHTML = `<div class="analysis-empty">${esc(this.t('cmp.loading'))}</div>`;
+        return;
+      }
 
       if (this._compareActive && this._compareErh) {
         const b = this._compareErh;
@@ -5610,9 +5682,13 @@
         body.innerHTML = `<div class="analysis-empty">${esc(this.t('cmp.none'))}</div>`;
         return;
       }
+      const errHtml = this._compareLoadError
+        ? `<div class="analysis-empty" style="color:var(--red)">${esc(this.t('cmp.loadError'))}</div>`
+        : '';
       const opts = cands.map((c, i) =>
         `<option value="${i}">${label(c)}</option>`).join('');
       body.innerHTML =
+        errHtml +
         `<div class="analysis-hint">${esc(this.t('cmp.intro'))}</div>
          <label class="cmp-label">${esc(this.t('cmp.pick'))}</label>
          <select id="cmp-select" class="cmp-select">${opts}</select>
@@ -9049,6 +9125,9 @@
           this.updateCompetitorMarkers();
           // Label-Update: jetzt haben wir Daten für Priorisierung
           this._scheduleLabelUpdate();
+          // Vergleich: zweite Erhebung wurde nachgeladen → B-Werte berechnen
+          // und Abweichungs-Karte aktivieren.
+          if (this._comparePendingB) this._finishCompareLoad();
         });
       } finally {
         this._hideCinematicLoader();
