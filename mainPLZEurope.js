@@ -5489,13 +5489,26 @@
       const a = this._activeFilter;
       if (!a || !this._erhebungIndex) return [];
       const activeIsLJ = String(a.nummer).trim() === '0';
+      const aYear = String(a.jahr);
       const out = [];
       for (const key of Object.keys(this._erhebungIndex)) {
         const [eID, yr, nr] = key.split('|');
         if (eID !== a.erhID) continue;                       // gleiche Einheit
+        if (yr === aYear && nr === String(a.nummer)) continue; // nicht A selbst
         const isLJ = String(nr).trim() === '0';
-        if (isLJ !== activeIsLJ) continue;                   // gleicher Typ
-        if (yr === String(a.jahr) && nr === String(a.nummer)) continue; // nicht A selbst
+        let ok;
+        if (activeIsLJ) {
+          // Laufendes Jahr vergleicht mit (a) anderen laufenden Jahren
+          // (Jahr-über-Jahr) ODER (b) Einzelerhebungen DESSELBEN Jahres
+          // (Vergleich innerhalb des Jahres). Die 0 bleibt dort ausgeschlossen
+          // — nur echte Einzelerhebungen (nr > 0) desselben Jahres.
+          ok = isLJ || (yr === aYear && !isLJ);
+        } else {
+          // Einzelerhebung vergleicht mit anderen Einzelerhebungen (Jahr egal,
+          // also auch innerhalb desselben Jahres). Laufendes Jahr (0) nie.
+          ok = !isLJ;
+        }
+        if (!ok) continue;
         out.push({ erhID: eID, jahr: yr, nummer: nr, isLJ });
       }
       // Sortierung: Jahr absteigend, dann Nummer aufsteigend.
