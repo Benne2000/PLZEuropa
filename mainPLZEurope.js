@@ -5325,8 +5325,11 @@
       // Vergleichsmodus: Fläche nach Abweichung A↔B einfärben (unabhängig von
       // Radius/NL-Filter; grau, wenn für die PLZ keine Vergleichsbasis existiert).
       if (this._compareActive) {
-        const pct = this._deviationPct(plz);
         this._removeCriticalMarker(plz);
+        // Radius-Filter: PLZ außerhalb des Radius ausgrauen (analog Umsatzmodus).
+        const hasRadius = this.plzImRadius instanceof Set && this.plzImRadius.size > 0;
+        const inRadius  = !this.useRadiusFilter || !hasRadius || this.plzImRadius.has(plz);
+        const pct = inRadius ? this._deviationPct(plz) : null;
         if (pct == null) {
           layer.setStyle({ fillColor: '#e9ecef', fillOpacity: this._plzFillOpacity('empty'), color: '#ffffff', weight: 0.8 });
         } else {
@@ -5490,8 +5493,16 @@
     _computeCompareValues(erhID, jahr, nummer) {
       const rows = this._getErhebungRows(erhID, jahr, nummer) || [];
       const out = {};
+      // NL-Filter: nur ausgewählte Niederlassungen zählen (gilt für A UND B
+      // gleich → konsistenter Vergleich). Kein Filter = alle NLs.
+      const selNLs = this._selectedNLs;
+      const hasNL  = selNLs instanceof Set && selNLs.size > 0 && selNLs.size < (this.allNLs?.length || Infinity);
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
+        if (hasNL) {
+          const nl = row['dimension_niederlassung_0']?.id?.trim();
+          if (!selNLs.has(nl)) continue;
+        }
         const land = this._landOfRow(row);
         const bare = this._normalizePLZ(row['dimension_plz_0']?.id, land);
         if (!bare || this._isAggregatePlz(bare)) continue;
@@ -5499,6 +5510,15 @@
         out[plz] = (out[plz] || 0) + (Number(row['value_hr_n_umsatz_0']?.raw) || 0);
       }
       return out;
+    }
+
+    // Berechnet A- und B-Werte neu (z.B. nach NL-Filter-Änderung). Nur im
+    // aktiven Vergleich relevant.
+    _recomputeCompareValues() {
+      if (!this._compareActive || !this._activeFilter || !this._compareErh) return;
+      const a = this._activeFilter, b = this._compareErh;
+      this._compareAValues = this._computeCompareValues(a.erhID, a.jahr, a.nummer);
+      this._compareBValues = this._computeCompareValues(b.erhID, b.jahr, b.nummer);
     }
 
     // Gültige Vergleichs-Erhebungen: dieselbe Einheit (erhID) wie die aktive,
@@ -5707,6 +5727,9 @@
 
     updateGeoLayer() {
       if (!this._geoLayer) return;
+      // Vergleichsmodus: A/B-Werte hängen vom NL-Filter ab → vor dem Einfärben
+      // neu berechnen (Radius wirkt nur auf die Anzeige, nicht auf die Summen).
+      if (this._compareActive) this._recomputeCompareValues();
       this.computeMaxValue();
       // Single-Modus: Standard-Cross-Erhebungs-Detection wenn Doppelbestreuung
       // aktiv und WK-Modus.
@@ -6146,8 +6169,9 @@
       const radius = Number(this.$('radius-slider').value);
       this.applyRadiusFilter(radius);
       this.updateCompetitorMarkers();
-      // Nach NL-Wechsel immer Overview zeigen (überschreibt ggf. _rerenderActivePopup)
-      this.showOverviewPopup();
+      // Nach NL-Wechsel Overview zeigen — außer im Vergleichsmodus, dort bleibt
+      // die Abweichungs-Karte aktiv (updateGeoLayer hat bereits neu eingefärbt).
+      if (!this._compareActive) this.showOverviewPopup();
     }
 
     initRadiusSlider() {
