@@ -184,6 +184,7 @@
       'cmp.pick': 'Vergleichs-Erhebung',
       'cmp.start': 'Vergleich starten', 'cmp.stop': 'Vergleich beenden',
       'cmp.none': 'Keine passende Vergleichs-Erhebung derselben Einheit vorhanden.',
+      'cmp.ljNotComparable': 'Das laufende Jahr kann nicht verglichen werden. Bitte eine Einzelerhebung auswählen.',
       'cmp.typeLJ': 'Laufendes Jahr', 'cmp.typeSingle': 'Einzelerhebung',
       'cmp.legendTitle': 'Umsatz-Abweichung (A ↔ B)',
       'cmp.higher': 'A höher', 'cmp.lower': 'A niedriger', 'cmp.equal': '≈ unverändert', 'cmp.noBase': 'keine Basis',
@@ -248,6 +249,7 @@
       'cmp.pick': 'Comparison survey',
       'cmp.start': 'Start comparison', 'cmp.stop': 'Stop comparison',
       'cmp.none': 'No matching comparison survey of the same unit available.',
+      'cmp.ljNotComparable': 'The running year cannot be compared. Please select an individual survey.',
       'cmp.typeLJ': 'Running year', 'cmp.typeSingle': 'Single survey',
       'cmp.legendTitle': 'Revenue deviation (A ↔ B)',
       'cmp.higher': 'A higher', 'cmp.lower': 'A lower', 'cmp.equal': '≈ unchanged', 'cmp.noBase': 'no basis',
@@ -5509,31 +5511,20 @@
       // Nummer geladen ist. B-Daten werden erst bei Auswahl nachgeladen.
       const struktur = this._erhData;
       if (!a || !struktur || !struktur[a.erhID]) return [];
-      const activeIsLJ = String(a.nummer).trim() === '0';
+      // Laufendes Jahr (Nr. 0) ist nicht vergleichbar — weder als A noch als B.
+      if (String(a.nummer).trim() === '0') return [];
       const aYear = String(a.jahr);
       const out = [];
       const byYear = struktur[a.erhID];
       for (const yr of Object.keys(byYear)) {
         const nummern = byYear[yr] instanceof Set ? [...byYear[yr]] : (byYear[yr] || []);
         for (const nrRaw of nummern) {
-        const nr = String(nrRaw).trim();
-        if (isAggregateNummer(nr)) continue;                 // kein "Ergebnis"-Aggregat
-        if (yr === aYear && nr === String(a.nummer)) continue; // nicht A selbst
-        const isLJ = nr === '0';
-        let ok;
-        if (activeIsLJ) {
-          // Laufendes Jahr vergleicht mit (a) anderen laufenden Jahren
-          // (Jahr-über-Jahr) ODER (b) Einzelerhebungen DESSELBEN Jahres
-          // (Vergleich innerhalb des Jahres). Die 0 bleibt dort ausgeschlossen
-          // — nur echte Einzelerhebungen (nr > 0) desselben Jahres.
-          ok = isLJ || (yr === aYear && !isLJ);
-        } else {
-          // Einzelerhebung vergleicht mit anderen Einzelerhebungen (Jahr egal,
-          // also auch innerhalb desselben Jahres). Laufendes Jahr (0) nie.
-          ok = !isLJ;
-        }
-        if (!ok) continue;
-        out.push({ erhID: a.erhID, jahr: yr, nummer: nr, isLJ });
+          const nr = String(nrRaw).trim();
+          if (isAggregateNummer(nr)) continue;                   // kein "Ergebnis"-Aggregat
+          if (nr === '0') continue;                              // laufendes Jahr nie als B
+          if (yr === aYear && nr === String(a.nummer)) continue; // nicht A selbst
+          // Nur Einzelerhebung ↔ Einzelerhebung (Jahr egal, auch innerhalb des Jahres).
+          out.push({ erhID: a.erhID, jahr: yr, nummer: nr, isLJ: false });
         }
       }
       // Sortierung: Jahr absteigend, dann Nummer aufsteigend.
@@ -5648,6 +5639,11 @@
         body.innerHTML = `<div class="analysis-empty">${esc(this.t('cmp.intro'))}</div>`;
         return;
       }
+      // Laufendes Jahr ist nicht vergleichbar — klaren Hinweis zeigen.
+      if (String(this._activeFilter.nummer).trim() === '0' && !this._compareActive && !this._comparePendingB) {
+        body.innerHTML = `<div class="analysis-empty">${esc(this.t('cmp.ljNotComparable'))}</div>`;
+        return;
+      }
       const label = (c) => c.isLJ
         ? `${this.t('cmp.typeLJ')} ${esc(c.jahr)}`
         : `${this.t('cmp.typeSingle')} ${esc(c.jahr)} · Nr. ${esc(c.nummer)}`;
@@ -5673,7 +5669,10 @@
              <div class="cmp-vs"><strong>A</strong> ${aLabel} &nbsp;${esc(this.t('cmp.vs'))}&nbsp; <strong>B</strong> ${bLabel}</div>
            </div>
            <button type="button" id="cmp-stop-btn" class="cmp-btn cmp-btn-stop">${esc(this.t('cmp.stop'))}</button>`;
-        this._on(this.$('cmp-stop-btn'), 'click', () => this._stopCompare());
+        // WICHTIG: innerhalb von body abfragen — das Analyse-Subtree ist beim
+        // Verdrahten noch nicht am Shadow-Root angehängt, daher fände
+        // this.$('…') (getElementById am Shadow-Root) das Element nicht.
+        this._on(body.querySelector('#cmp-stop-btn'), 'click', () => this._stopCompare());
         return;
       }
 
@@ -5693,8 +5692,9 @@
          <label class="cmp-label">${esc(this.t('cmp.pick'))}</label>
          <select id="cmp-select" class="cmp-select">${opts}</select>
          <button type="button" id="cmp-start-btn" class="cmp-btn">${esc(this.t('cmp.start'))}</button>`;
-      this._on(this.$('cmp-start-btn'), 'click', () => {
-        const sel = this.$('cmp-select');
+      // innerhalb von body abfragen (Subtree noch nicht am Shadow-Root).
+      this._on(body.querySelector('#cmp-start-btn'), 'click', () => {
+        const sel = body.querySelector('#cmp-select');
         const c = cands[Number(sel?.value) || 0];
         if (c) this._startCompare(c.erhID, c.jahr, c.nummer);
       });
