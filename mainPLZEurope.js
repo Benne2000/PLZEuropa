@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  SAP Custom Widget – Geo-PLZ-Analyse
-//  Refactored Version
+//  Refactored Version – Dark Mode (2026-11-10)
 //
 //  Änderungen ggü. Vorversion:
 //    • Kein globaler Scope-Leak mehr (alles in IIFE, keine let außerhalb)
@@ -372,6 +372,11 @@
         --red-border:   rgba(180,24,33,0.2);
         --red-shadow:   rgba(180,24,33,0.15);
         --white:        #ffffff;
+        --on-accent:    #ffffff;
+        --map-water:    #dde5ec;
+        --surface-glass: rgba(255,255,255,0.97);
+        color-scheme: light;
+        color: var(--gray-800);
         --gray-50:  #f8f9fa;  --gray-100: #f1f3f5;  --gray-200: #e9ecef;
         --gray-300: #dee2e6;  --gray-400: #ced4da;  --gray-500: #adb5bd;
         --gray-600: #6c757d;  --gray-700: #495057;  --gray-800: #343a40;  --gray-900: #212529;
@@ -446,13 +451,13 @@
                     background   0.18s var(--ease-in-out);
         outline: none;
       }
-      .filter-container select:hover:not(:disabled) { border-color: var(--red-border); background-color: var(--white); }
-      .filter-container select:focus    { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-shadow); background-color: var(--white); }
+      .filter-container select:hover:not(:disabled) { border-color: var(--red-border); background-color: var(--on-accent); }
+      .filter-container select:focus    { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-shadow); background-color: var(--on-accent); }
       .filter-container select:disabled { opacity: 0.45; cursor: not-allowed; }
 
       #filter-button {
         width: 100%; margin-top: 10px; padding: 9px 16px; font-size: 0.87rem;
-        font-family: var(--font); font-weight: 600; color: var(--white);
+        font-family: var(--font); font-weight: 600; color: var(--on-accent);
         background: var(--gray-300); border: none; border-radius: var(--radius-md);
         cursor: not-allowed; position: relative; overflow: hidden;
         transition: background 0.22s var(--ease-in-out), transform 0.12s, box-shadow 0.18s;
@@ -491,7 +496,7 @@
       .table-wrapper table { width: 100%; border-collapse: collapse; table-layout: fixed; }
       .table-wrapper thead { position: sticky; top: 0; z-index: 2; }
       .table-wrapper th {
-        background: var(--red); color: var(--white); padding: 8px 10px;
+        background: var(--red); color: var(--on-accent); padding: 8px 10px;
         text-align: left; font-size: 0.72rem; font-weight: 700;
         letter-spacing: 0.05em; text-transform: uppercase; white-space: pre-line;
         cursor: pointer; user-select: none; transition: background 0.15s;
@@ -525,7 +530,7 @@
          Wir nutzen ein ::before-Pseudo-Element auf der ersten Zelle, weil
          <tr> selbst keine zuverlässigen Pseudo-Elemente erlaubt (rendering quirks). */
       .table-row-selected td {
-        background: #fff3f3 !important;
+        background: var(--red-bg) !important;
         transition: background 0.32s var(--ease-out);
       }
       .table-row-selected td:first-child {
@@ -536,8 +541,8 @@
       }
       @keyframes tableRowEnter {
         0%   { background-color: var(--red-bg); box-shadow: inset 6px 0 0 0 var(--red); }
-        50%  { background-color: #ffe5e7; }
-        100% { background-color: #fff3f3; box-shadow: inset 3px 0 0 0 var(--red); }
+        50%  { background-color: var(--red-bg-hover); }
+        100% { background-color: var(--red-bg); box-shadow: inset 3px 0 0 0 var(--red); }
       }
 
       #streuverlust-box {
@@ -563,7 +568,7 @@
         font-family: var(--font); cursor: pointer;
         transition: background 0.15s, color 0.15s;
       }
-      .table-export-btn:hover { background: var(--red); color: var(--white); }
+      .table-export-btn:hover { background: var(--red); color: var(--on-accent); }
       .table-export-btn:active { transform: translateY(1px); }
 
       /* ─── Sidebar-Layout (Phase 2) ─────────────────────────────────── */
@@ -913,7 +918,7 @@
         flex-shrink: 0;
         padding: 9px 12px;
         font-family: var(--font); font-size: 0.8rem; font-weight: 600;
-        color: var(--white);
+        color: var(--on-accent);
         background: linear-gradient(135deg, var(--gray-700) 0%, var(--gray-800) 100%);
         border: none; border-radius: var(--radius-md);
         cursor: pointer;
@@ -1073,7 +1078,7 @@
       }
       .nl-info-row { cursor: pointer; transition: background 0.12s; }
       .nl-info-row:hover td { background: var(--red-bg); }
-      .nl-info-row.table-row-selected td             { background: #fff3f3; }
+      .nl-info-row.table-row-selected td             { background: var(--red-bg); }
       .nl-info-row.table-row-selected td:first-child { border-left: 3px solid var(--red); }
 
       /* Datenqualitäts-Indikator: NL mit pct_erfassung > 100% (= Umsatz ohne
@@ -1125,7 +1130,7 @@
       .nl-gf-group-count {
         float: right;
         font-size: 0.62rem; font-weight: 600;
-        background: white; color: var(--red);
+        background: var(--white); color: var(--red);
         padding: 1px 7px; border-radius: 10px;
         border: 1px solid var(--red-border);
         text-transform: none; letter-spacing: 0;
@@ -1372,7 +1377,7 @@
       /* ─── Map ───────────────────────────────────────────────────── */
       .map-container { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; isolation: isolate;
                        container-type: inline-size; container-name: map; }
-      #map { height: 100%; width: 100%; background: #dde5ec; }
+      #map { height: 100%; width: 100%; background: var(--map-water); }
 
       #map-interaction-block {
         position: absolute; inset: 0; z-index: 500;
@@ -1397,7 +1402,7 @@
 
       /* PLZ-Label auf der Karte (ab Zoom-Level LABEL_ZOOM_MIN) */
       .plz-map-label {
-        background: rgba(255,255,255,0.88);
+        background: var(--surface-glass);
         border: 1px solid rgba(0,0,0,0.06);
         padding: 1px 5px;
         font-size: 10px;
@@ -1414,7 +1419,7 @@
         transform: translate(-50%, -50%);
       }
       .plz-map-label.plz-map-label-strong {
-        background: rgba(255,255,255,0.96);
+        background: var(--surface-glass);
         font-size: 11px;
         color: var(--gray-800);
         padding: 2px 6px;
@@ -1520,7 +1525,7 @@
 
       #heatmap-legend {
         position: absolute; bottom: 78px; left: 14px;
-        background: rgba(255,255,255,0.97); border: 1.5px solid var(--gray-200);
+        background: var(--surface-glass); border: 1.5px solid var(--gray-200);
         border-radius: var(--radius-lg); padding: 12px 14px; width: 210px;
         font-size: 11.5px; font-family: var(--font);
         z-index: 9998; box-shadow: var(--shadow-lg); pointer-events: none;
@@ -1731,7 +1736,7 @@
         position: absolute; right: 0; bottom: 0;
         width: clamp(260px, 26%, 380px); height: 25%; max-height: 68%;
         overflow-y: auto;
-        background: rgba(255,255,255,0.97); backdrop-filter: blur(8px);
+        background: var(--surface-glass); backdrop-filter: blur(8px);
         border-left: 1px solid var(--gray-200); border-top: 1px solid var(--gray-200);
         border-top-left-radius: var(--radius-xl); padding: 14px;
         font-family: var(--font); z-index: 20;
@@ -1817,7 +1822,7 @@
       }
       .switch-btn:hover:not(.active) { color: var(--red); }
       .switch-btn.active {
-        color: var(--white);
+        color: var(--on-accent);
       }
       .option-row {
         display: flex; gap: 10px; font-size: 0.82rem;
@@ -1968,7 +1973,7 @@
       /* ─── Cinematic Loader ──────────────────────────────────────── */
       #cinematic-loader {
         position: absolute; inset: 0; z-index: 99999;
-        background: rgba(255,255,255,0.96); backdrop-filter: blur(6px);
+        background: var(--surface-glass); backdrop-filter: blur(6px);
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         font-family: var(--font); animation: loaderFadeIn 0.25s ease;
       }
@@ -2112,7 +2117,7 @@
         padding: 7px 10px; cursor: pointer;
         transition: background 0.15s;
         border-bottom: 1px solid var(--gray-100);
-        background: white;
+        background: var(--white);
       }
       .doppel-option:last-child { border-bottom: none; }
       .doppel-option:hover:not(.disabled) { background: var(--red-bg); }
@@ -2407,7 +2412,7 @@
       .cmp-select:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-shadow); outline: none; }
       .cmp-btn {
         width: 100%; padding: 9px 12px; border: none; border-radius: var(--radius-md);
-        background: var(--red); color: var(--white); font-family: var(--font);
+        background: var(--red); color: var(--on-accent); font-family: var(--font);
         font-size: 0.82rem; font-weight: 700; cursor: pointer;
         transition: background 0.15s, transform 0.1s;
       }
@@ -2481,7 +2486,7 @@
       #preview-erh-label {
         position: absolute; top: 58px; left: 50%;
         transform: translateX(-50%);
-        background: rgba(255,255,255,0.93);
+        background: var(--surface-glass);
         border: 1px solid var(--gray-200);
         border-radius: 100px; padding: 5px 16px;
         font-size: 0.72rem; font-weight: 700;
@@ -2558,6 +2563,71 @@
         .panel-footer-btn { min-height: 40px; }
         .side-popup .close-btn { width: 34px; height: 34px; }
       }
+
+      /* ─── Dark Mode: lokal pro Widget, keine globalen SAC-Styles ───── */
+      :host([data-theme="dark"]) {
+        color-scheme: dark;
+        --white: #1e2734;
+        --gray-50: #151d28; --gray-100: #263140; --gray-200: #344255;
+        --gray-300: #46566b; --gray-400: #7e91a8; --gray-500: #a8b8cc;
+        --gray-600: #b6c4d5; --gray-700: #ced8e6;
+        --gray-800: #e5edf7; --gray-900: #f4f7fb;
+        --red-bg: #39232e; --red-bg-hover: #4b2935;
+        --red-border: rgba(255,126,142,0.48);
+        --red-shadow: rgba(255,126,142,0.20);
+        --map-water: #111b28;
+        --surface-glass: rgba(30,39,52,0.97);
+        --shadow-xs: 0 1px 3px rgba(0,0,0,0.25);
+        --shadow-sm: 0 2px 8px rgba(0,0,0,0.30);
+        --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
+        --shadow-lg: 0 8px 32px rgba(0,0,0,0.40);
+      }
+      #theme-toggle-btn {
+        position: absolute; top: 12px; right: 14px; z-index: 10000;
+        width: 40px; height: 40px; padding: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--white); color: var(--gray-800);
+        border: 1.5px solid var(--gray-200); border-radius: 50%;
+        box-shadow: var(--shadow-md); cursor: pointer;
+        font-family: var(--font); font-size: 21px; line-height: 1;
+      }
+      #theme-toggle-btn:hover { border-color: var(--red); }
+      #theme-toggle-btn:focus-visible { outline: 2px solid #ff7e8e; outline-offset: 3px; }
+      :host([data-theme="dark"]) input { accent-color: #e44758; }
+      :host([data-theme="dark"]) input::placeholder { color: var(--gray-500); }
+      :host([data-theme="dark"]) .table-wrapper th .sort-icon { text-shadow: none; }
+      :host([data-theme="dark"]) .skeleton-map-overlay { background: rgba(21,29,40,0.45); }
+      :host([data-theme="dark"]) #map-mode-fade.fade-active { background: rgba(21,29,40,0.55); }
+      :host([data-theme="dark"]) .skeleton-shimmer {
+        background-image: linear-gradient(90deg,rgba(255,255,255,0.04),rgba(255,255,255,0.10),rgba(255,255,255,0.04));
+      }
+      /* Nur Rasterkacheln abdunkeln: Heatmaps, Marker und Legenden bleiben unverändert. */
+      :host([data-theme="dark"]) .leaflet-tile-pane img.leaflet-tile {
+        filter: invert(1) hue-rotate(180deg) brightness(0.78) saturate(0.65);
+      }
+      :host([data-theme="dark"]) .leaflet-control-attribution,
+      :host([data-theme="dark"]) .leaflet-bar a,
+      :host([data-theme="dark"]) .leaflet-tooltip,
+      :host([data-theme="dark"]) .leaflet-popup-content-wrapper,
+      :host([data-theme="dark"]) .leaflet-popup-tip {
+        background: var(--white); color: var(--gray-800); border-color: var(--gray-200);
+      }
+      :host([data-theme="dark"]) .leaflet-bar a:hover { background: var(--gray-100); }
+      :host([data-theme="dark"]) .leaflet-control-attribution a { color: #91c9ff; }
+      :host([data-theme="dark"]) .leaflet-tooltip-top::before { border-top-color: var(--white); }
+      :host([data-theme="dark"]) .leaflet-tooltip-bottom::before { border-bottom-color: var(--white); }
+      :host([data-theme="dark"]) .leaflet-tooltip-left::before { border-left-color: var(--white); }
+      :host([data-theme="dark"]) .leaflet-tooltip-right::before { border-right-color: var(--white); }
+      /* Rot als Text benötigt auf dunklen Oberflächen einen helleren Akzent.
+         Die roten Flächen und fachlichen Heatmap-Farben werden nicht umgefärbt. */
+      :host([data-theme="dark"]) .lang-btn.active,
+      :host([data-theme="dark"]) .sidebar-icon.active .sidebar-icon-label,
+      :host([data-theme="dark"]) .plz-map-label .plz-code,
+      :host([data-theme="dark"]) .doppel-option.active .doppel-option-name,
+      :host([data-theme="dark"]) .compact-switch .mode-left,
+      :host([data-theme="dark"]) .compact-switch .mode-right,
+      :host([data-theme="dark"]) .triple-switch span.active { color: #ff8b9a; }
+      @media (pointer: coarse) { #theme-toggle-btn { width: 44px; height: 44px; } }
     </style>
 
     <div class="layout">
@@ -2648,6 +2718,8 @@
       </div>
 
       <div class="map-container">
+        <button id="theme-toggle-btn" type="button" aria-pressed="false"
+                aria-label="Dunkelmodus einschalten" title="Dunkelmodus einschalten">☾</button>
         <div id="map-interaction-block"></div>
         <div id="map-preview-overlay" style="position:absolute;inset:0;z-index:400;pointer-events:none;overflow:hidden;"></div>
         <div id="loading-spinner" class="spinner hidden"></div>
@@ -2860,6 +2932,7 @@
       this._bonRefCache          = 0;      // gewichteter Referenz-Ø-Bon (Index 100)
       this._displayCurrency      = 'EUR';  // führende Anzeige-Währung (LOC_CURRCY)
       this.lang                  = 'de';    // aktive Sprache (de|en); via setLang gesetzt
+      this._theme                = 'light'; // kompatibler Standard; pro Browser gespeichert
       this.filteredData          = null;
       this.filteredKennwerte     = {};
       this.filteredPLZWerte      = {};
@@ -2904,6 +2977,61 @@
       this._nummerFilterKey = null;
     }
 
+    // ── Theme ─────────────────────────────────────────────────────────
+    // Kein Manifest-Update nötig: der native Button ist unabhängig von SAC.
+    // Storage kann im SAC-Iframe blockiert sein; dann bleibt der Zustand im Speicher.
+    _setupTheme() {
+      try {
+        const saved = localStorage.getItem('geoMapWidgetEuropa.theme');
+        if (saved === 'light' || saved === 'dark') this._theme = saved;
+      } catch (e) { /* Storage nicht verfügbar */ }
+      this._applyTheme();
+      this._on(this.$('theme-toggle-btn'), 'click', () => {
+        this._theme = this._theme === 'dark' ? 'light' : 'dark';
+        this._applyTheme();
+        try { localStorage.setItem('geoMapWidgetEuropa.theme', this._theme); }
+        catch (e) { /* Theme funktioniert auch ohne Persistenz */ }
+      });
+    }
+
+    _updateThemeButton() {
+      const btn = this.$('theme-toggle-btn');
+      if (!btn) return;
+      const dark = this._theme === 'dark';
+      const label = this.lang === 'en'
+        ? (dark ? 'Switch to light mode' : 'Switch to dark mode')
+        : (dark ? 'Hellmodus einschalten' : 'Dunkelmodus einschalten');
+      btn.textContent = dark ? '☀' : '☾';
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('aria-pressed', String(dark));
+    }
+
+    _neutralBorderStyle() {
+      const dark = this._theme === 'dark';
+      return {
+        fill: !this._tilesVisible,
+        fillColor: dark ? '#263343' : '#f4f1ea', fillOpacity: 1,
+        color: dark ? '#73869e' : (this._tilesVisible ? '#8b94a0' : '#aab2bd'),
+        weight: this._tilesVisible ? 1.1 : 1.2,
+        opacity: this._tilesVisible ? 0.85 : 0.9,
+      };
+    }
+
+    _previewBorderStyle() {
+      const dark = this._theme === 'dark';
+      return { fill: true, fillColor: dark ? '#542c3a' : '#fbe4e4',
+        fillOpacity: 1, color: dark ? '#ff8b9a' : '#b41821', weight: 1.8, opacity: 0.95 };
+    }
+
+    _applyTheme() {
+      this.setAttribute('data-theme', this._theme);
+      this._updateThemeButton();
+      this._applyBordersTileState();
+      const preview = this._borderLayerByLand?.get(this._previewTintLand);
+      if (preview) preview.setStyle(this._previewBorderStyle());
+    }
+
     // ── Lifecycle ──────────────────────────────────────────────────────
     connectedCallback() {
       // SAC-Property "language" (falls vorab gesetzt) übernehmen — der
@@ -2917,6 +3045,8 @@
         this._abortCtrl = new AbortController();
         this._signal    = this._abortCtrl.signal;
       }
+
+      this._setupTheme();
 
       // Bug 17 Fix: Sidebar-Click-Handler früh registrieren — vor Leaflet-Load.
       // Sonst kann der User im Hauptmenü auf die Anleitung klicken, bevor das
@@ -3963,7 +4093,7 @@
             // Sanfte Landfläche (warmes Off-White) auf kühlem "Wasser"-
             // Hintergrund + weiche Kante — lässt die Übersicht wie eine echte
             // Karte wirken statt wie nackte Umrisse auf grauer Fläche.
-            style: { fill: true, fillColor: '#f4f1ea', fillOpacity: 1, color: '#aab2bd', weight: 1.2, opacity: 0.9, lineJoin: 'round' },
+            style: { ...this._neutralBorderStyle(), lineJoin: 'round' },
           });
           this._borderGroup.addLayer(lyr);
           this._borderLayerByLand.set(land, lyr);
@@ -4992,6 +5122,7 @@
         this._on(btn, 'click', () => this.setLang(btn.dataset.lang));
       });
       this._applyI18n(this._shadowRoot);
+      this._updateThemeButton();
       this._refreshSelectPlaceholders();
 
       // Map-Buttons
@@ -5961,7 +6092,7 @@
           marker.bindTooltip(
             `<strong style="color:${cfg.color}">${escapeHtml(brand)}</strong><br>
              ${escapeHtml(name)}<br>
-             <span style="font-size:0.85em;color:#666">${escapeHtml(distLabel)}</span>`,
+             <span style="font-size:0.85em;color:var(--gray-600)">${escapeHtml(distLabel)}</span>`,
             { direction: 'top', offset: [0, -cfg.size / 2], className: 'competitor-tooltip' }
           );
           this.competitorGroup.addLayer(marker);
@@ -6002,13 +6133,10 @@
     // Land wird nicht angefasst (dessen Tönung bleibt erhalten).
     _applyBordersTileState() {
       if (!this._borderLayerByLand) return;
-      const tiles = !!this._tilesVisible;
       for (const [land, lyr] of this._borderLayerByLand) {
         if (land === this._previewTintLand) continue;
         try {
-          lyr.setStyle(tiles
-            ? { fill: false, color: '#8b94a0', weight: 1.1, opacity: 0.85 }
-            : { fill: true, fillColor: '#f4f1ea', fillOpacity: 1, color: '#aab2bd', weight: 1.2, opacity: 0.9 });
+          lyr.setStyle(this._neutralBorderStyle());
         } catch (e) { /* Layer ggf. nicht auf der Karte */ }
       }
     }
@@ -8289,6 +8417,7 @@
     setLang(lang) {
       const next = (lang === 'en') ? 'en' : 'de';
       this.lang = next;
+      this._updateThemeButton();
       _activeLocale = LOCALE_BY_LANG[next] || 'de-DE';
       // Umschalter-Optik
       this._shadowRoot?.querySelectorAll('.lang-btn').forEach(b =>
@@ -8776,10 +8905,8 @@
       if (this._previewTintLand === land) return;
       // Neutral-Reset respektiert den Kachel-Status: bei aktiven Kacheln keine
       // Landfüllung (sonst würde das vorher getönte Land die Karte verdecken).
-      const NEUTRAL = this._tilesVisible
-        ? { fill: false, fillColor: '#f4f1ea', color: '#8b94a0', weight: 1.1, opacity: 0.85 }
-        : { fill: true, fillColor: '#f4f1ea', fillOpacity: 1, color: '#aab2bd', weight: 1.2, opacity: 0.9 };
-      const ACTIVE  = { fill: true, fillColor: '#fbe4e4', fillOpacity: 1, color: '#b41821', weight: 1.8, opacity: 0.95 };
+      const NEUTRAL = this._neutralBorderStyle();
+      const ACTIVE  = this._previewBorderStyle();
       const prev = this._borderLayerByLand.get(this._previewTintLand);
       if (prev) { try { prev.setStyle(NEUTRAL); } catch (e) {} }
       const next = land ? this._borderLayerByLand.get(land) : null;
