@@ -2724,8 +2724,8 @@
         <div id="map-preview-overlay" style="position:absolute;inset:0;z-index:400;pointer-events:none;overflow:hidden;"></div>
         <div id="loading-spinner" class="spinner hidden"></div>
         <div id="radius-slider-container">
-          <label><span data-i18n="map.radius">Radius</span>: <span id="radius-value">40</span> km</label>
-          <input type="range" id="radius-slider" min="10" max="100" value="40" step="5">
+          <label><span data-i18n="map.radius">Radius</span>: <span id="radius-value">150</span> km</label>
+          <input type="range" id="radius-slider" min="10" max="150" value="150" step="5">
         </div>
         <div id="map"></div>
         <div id="legend-toggle-btn" data-i18n-title="map.title.legend" title="Legende"></div>
@@ -3664,7 +3664,7 @@
           // Index ist null → _getAllActiveRows triggert _buildErhebungIndex
           // mit der neuen Active-Liste → korrekte Daten.
           this.filteredData = this._getAllActiveRows();
-          this.applyRadiusFilter(Number(this.$('radius-slider')?.value ?? 40));
+          this.applyRadiusFilter(Number(this.$('radius-slider')?.value ?? 150));
           this.updateGeoLayer();
           this.renderDataTable(this.filteredKennwerte);
         }
@@ -6185,7 +6185,7 @@
       this.applyNLFilter([...this._selectedNLs]);
       this.updateMarkers();
       this._buildDistanceCache();
-      const radius = Number(this.$('radius-slider')?.value ?? 0);
+      const radius = Number(this.$('radius-slider')?.value ?? 150);
       // applyRadiusFilter ruft intern updateGeoLayer auf — kein extra-Aufruf nötig
       this.applyRadiusFilter(radius);
       this.updateCompetitorMarkers();
@@ -7669,7 +7669,7 @@
         } else {
           // Fallback ohne BW
           this.filteredData = this._getAllActiveRows();
-          this.applyRadiusFilter(Number(this.$('radius-slider')?.value ?? 40));
+          this.applyRadiusFilter(Number(this.$('radius-slider')?.value ?? 150));
           this.updateGeoLayer();
           this.renderDataTable(this.filteredKennwerte);
         }
@@ -9116,7 +9116,7 @@
             this.createAllMarkers();
 
             this._updateLoaderPhase(4, 'Kennwerte werden berechnet…');
-            const radius = Number(this.$('radius-slider')?.value ?? 40);
+            const radius = Number(this.$('radius-slider')?.value ?? 150);
             this._buildDistanceCache();
             // Bug-Fix B23: applyRadiusFilter ruft intern bereits
             // prepareUmsatzPLZWerte, computeWKKennwerte, computeStreuverlust auf.
@@ -9238,7 +9238,7 @@
         progress(4, 70, 'Kennwerte werden berechnet…', filteredData.length);
         await yieldFrame();
         if (isStale()) { console.info('[PLZ-Widget] render() abgebrochen (stale)'); console.groupEnd(); return; }
-        const radius = Number(this.$('radius-slider')?.value ?? 40);
+        const radius = Number(this.$('radius-slider')?.value ?? 150);
         this._buildDistanceCache();
         // Bug-Fix B23: applyRadiusFilter ruft intern bereits
         // prepareUmsatzPLZWerte, computeWKKennwerte, computeStreuverlust auf.
@@ -9546,7 +9546,7 @@
 
         <h4>Karten-Tools</h4>
         <ul>
-          <li><strong>🔴 Radius-Slider</strong> (oben Mitte): 10–100 km
+          <li><strong>🔴 Radius-Slider</strong> (oben Mitte): 10–150 km
             Einzugsgebiet um aktive NLs.</li>
           <li><strong>🗺️ Kartenstil</strong> (rechts unten): OpenStreetMap-
             Hintergrund ein/aus.</li>
