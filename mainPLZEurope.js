@@ -37,11 +37,12 @@
     AT: { file: 'PLZ_AT.geojson', plzLen: 4, center: [47.6, 14.1], zoom: 7 },
     CZ: { file: 'PLZ_CZ.geojson', plzLen: 5, center: [49.8, 15.5], zoom: 7 },
     ES: { file: 'PLZ_ES.geojson', plzLen: 5, center: [40.0, -3.7], zoom: 6 },
+    SK: { file: 'PLZ_SK.geojson', plzLen: 5, center: [48.7, 19.5], zoom: 7 },
   };
   const COUNTRY_CODES = Object.keys(COUNTRY_CONFIG);
   const DEFAULT_LAND  = 'DE';
   const GEO_BASE_URL  = 'https://benne2000.github.io/PLZEuropa/';
-  const LAND_NAMES    = { DE: 'Deutschland', NL: 'Niederlande', CH: 'Schweiz', AT: 'Österreich', CZ: 'Tschechien', ES: 'Spanien' };
+  const LAND_NAMES    = { DE: 'Deutschland', NL: 'Niederlande', CH: 'Schweiz', AT: 'Österreich', CZ: 'Tschechien', ES: 'Spanien', SK: 'Slowakei' };
   const BORDERS_URL   = GEO_BASE_URL + 'borders.geojson';
 
   const NULL_TOKENS   = new Set(['', '@NullMember', '@TotalMembers']);
@@ -103,7 +104,7 @@
   // Währung je Land: LOC_CURRCY lässt sich in SAC nicht als Merkmal auf den
   // Feed legen (es ist ein Währungsfeld). Da eine Erhebung = ein Land ist
   // (BERHEBEHT; GF-Bereiche nur in DE), ist die Währung fest bestimmbar.
-  const LAND_CURRENCY = { DE: 'EUR', NL: 'EUR', AT: 'EUR', ES: 'EUR', CH: 'CHF', CZ: 'CZK' };
+  const LAND_CURRENCY = { DE: 'EUR', NL: 'EUR', AT: 'EUR', ES: 'EUR', CH: 'CHF', CZ: 'CZK', SK: 'EUR' };
 
   // ══════════════════════════════════════════════════════════════════
   //  i18n — Deutsch / Englisch
@@ -3446,7 +3447,7 @@
 
     // Land einer BW-Row — abgeleitet aus BERHEBEHT (Land oder GF-Bereich).
     _landOfRow(row) {
-      // BERHEBEHT ist entweder ein Ländercode (DE/NL/CH/AT/CZ/ES) oder ein
+      // BERHEBEHT ist entweder ein Ländercode (DE/NL/CH/AT/CZ/ES/SK) oder ein
       // GF-Bereich (nur in DE). Ist der Wert ein bekanntes Land → dieses Land,
       // sonst (GF-Bereich) → Default DE.
       const erh = row?.['dimension_erhebung_0']?.id?.trim();
