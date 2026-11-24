@@ -311,6 +311,11 @@
   // (dort rechnet BW Bons korrekt, auch bei Überlappung).
   const BONS_HWG_AGG = 'sum';
 
+  // Flag "NL hat Umsatz ohne PLZ-Zuordnung": ab diesem Anteil des erfassten
+  // IST-Umsatzes, der unter PLZ 00000 liegt (keine gültige PLZ), wird die NL
+  // an Marker und in der NL-Tabelle markiert. 0.05 = 5 %.
+  const OHNE_PLZ_SCHWELLE = 0.05;
+
   // ── Streuplan-Fallback (analog Mitbewerber-Fallback) ─────────────────
   const STREUPLAN_FALLBACK = {"termine":[{"datum":"2026-01-31","kw":6,"beschreibung":"16-Seiter A4"},{"datum":"2026-02-28","kw":10,"beschreibung":"32-Seiter A4"},{"datum":"2026-03-28","kw":14,"beschreibung":"32-Seiter A4"},{"datum":"2026-04-11","kw":16,"beschreibung":"16-Seiter A4"},{"datum":"2026-05-02","kw":19,"beschreibung":"24-Seiter A4"},{"datum":"2026-05-16","kw":21,"beschreibung":"16-Seiter A4"},{"datum":"2026-05-30","kw":23,"beschreibung":"24-Seiter A4"},{"datum":"2026-07-18","kw":30,"beschreibung":"8-Seiter A4"},{"datum":"2026-08-29","kw":36,"beschreibung":"16-Seiter A4"},{"datum":"2026-09-12","kw":38,"beschreibung":"16-Seiter A4"},{"datum":"2026-10-02","kw":41,"beschreibung":"40-Seiter A4"},{"datum":"2026-10-30","kw":45,"beschreibung":"24-Seiter A4"},{"datum":"2026-11-28","kw":49,"beschreibung":"32-Seiter A4"}],"partner":[{"haupt_nl":"Kiel-Suchsdorf","haupt_nl_id":571,"partner_nls":[{"id":853,"name":"Kiel-Ravensberg"},{"id":634,"name":"Schwentinental-Raisdorf"}]},{"haupt_nl":"Lübeck","haupt_nl_id":639,"partner_nls":[{"id":534,"name":"Lübeck-St. Jürgen"},{"id":864,"name":"Lübeck-Moisling"}]},{"haupt_nl":"Bremen","haupt_nl_id":647,"partner_nls":[{"id":553,"name":"Stuhr-Groß-Mackenstedt"},{"id":863,"name":"Bremen-Osterholz (Weserpark)"}]},{"haupt_nl":"Dortmund","haupt_nl_id":573,"partner_nls":[{"id":509,"name":"Dortmund-Aplerbeck"}]},{"haupt_nl":"Bochum Harpen","haupt_nl_id":519,"partner_nls":[{"id":648,"name":"Bochum-Hofstede"}]},{"haupt_nl":"Wuppertal-Barmen (Lichtscheid)","haupt_nl_id":868,"partner_nls":[{"id":617,"name":"Wuppertal"}]},{"haupt_nl":"Krefeld-Mevissenstraße","haupt_nl_id":633,"partner_nls":[{"id":541,"name":"Krefeld-Untergath"}]},{"haupt_nl":"Aachen","haupt_nl_id":586,"partner_nls":[{"id":613,"name":"Würselen"}]},{"haupt_nl":"Hamburg-Bergedorf","haupt_nl_id":620,"partner_nls":[{"id":619,"name":"Hamburg-Harburg"},{"id":851,"name":"Hamburg-Wandsbek"},{"id":595,"name":"Hamburg-Moorfleet"},{"id":663,"name":"Hamburg-Bramfeld"},{"id":858,"name":"Hamburg-Langenhorn"},{"id":664,"name":"Hamburg-Stellingen"},{"id":654,"name":"Hamburg-Lokstedt"},{"id":865,"name":"Hamburg-Lurup"},{"id":624,"name":"Barsbüttel"}]},{"haupt_nl":"Berlin-Charlottenburg","haupt_nl_id":812,"partner_nls":[{"id":643,"name":"Berlin-Kurfürstendamm"},{"id":840,"name":"Berlin Am Wittenbergplatz"},{"id":814,"name":"Berlin Am Hermannplatz"},{"id":597,"name":"Berlin-Schöneberg"},{"id":894,"name":"Berlin-Steglitz"},{"id":604,"name":"Berlin-Marienfelde"},{"id":866,"name":"Berlin-Treptow"},{"id":578,"name":"Berlin-Pankow"},{"id":656,"name":"Berlin-Wedding"},{"id":850,"name":"Berlin-Wittenau"},{"id":596,"name":"Berlin-Spandau Brunsbütteler Damm"},{"id":623,"name":"Berlin-Spandau"}]},{"haupt_nl":"Wildau","haupt_nl_id":605,"partner_nls":[{"id":565,"name":"Mahlow"},{"id":577,"name":"Birkenwerder"}]},{"haupt_nl":"Karlsruhe-Oststadt","haupt_nl_id":852,"partner_nls":[{"id":330,"name":"Karlsruhe-Südstadt"},{"id":525,"name":"Karlsruhe-Mühlburg"}]},{"haupt_nl":"Stuttgart","haupt_nl_id":871,"partner_nls":[{"id":631,"name":"Stuttgart-Untertürkheim"},{"id":626,"name":"Stuttgart-Möhringen"}]},{"haupt_nl":"Augsburg-Oberhausen","haupt_nl_id":862,"partner_nls":[{"id":515,"name":"Augsburg"},{"id":632,"name":"Augsburg-Lechhausen"},{"id":548,"name":"Gersthofen"}]},{"haupt_nl":"Kassel","haupt_nl_id":658,"partner_nls":[{"id":603,"name":"Fuldabrück"}]},{"haupt_nl":"Mainz-Mombach","haupt_nl_id":854,"partner_nls":[{"id":614,"name":"Mainz"}]},{"haupt_nl":"Mannheim","haupt_nl_id":655,"partner_nls":[{"id":583,"name":"Mannheim-Mallau"},{"id":557,"name":"Mannheim-Waldhof"},{"id":897,"name":"Mannheim-Columbus"}]},{"haupt_nl":"Dillingen","haupt_nl_id":585,"partner_nls":[{"id":622,"name":"Ensdorf"}]},{"haupt_nl":"Essen-Frillendorf","haupt_nl_id":539,"partner_nls":[{"id":505,"name":"Essen-Frohnhausen"}]},{"haupt_nl":"München","haupt_nl_id":520,"partner_nls":[{"id":870,"name":"München-Freimann"}]},{"haupt_nl":"Braunschweig","haupt_nl_id":607,"partner_nls":[{"id":630,"name":"Braunschweig-Stöckheim"}]}]};
 
@@ -1096,7 +1101,7 @@
       .nl-info-row.table-row-selected td             { background: var(--red-bg); }
       .nl-info-row.table-row-selected td:first-child { border-left: 3px solid var(--red); }
 
-      /* Datenqualitäts-Indikator: NL mit pct_erfassung > 100% (= Umsatz ohne
+      /* Datenqualitäts-Indikator: NL mit Umsatzanteil ohne PLZ > OHNE_PLZ_SCHWELLE (= Umsatz ohne
          gültige PLZ-Zuordnung). Wir markieren nur den auffälligen Prozentwert
          und nicht die ganze Zeile — der Rest der Daten ist ja valide. */
       .nl-info-row td.nl-pct-invalid {
@@ -6278,11 +6283,28 @@
       return this.iconCache[key];
     }
 
-    // Hilfs-Check: hat diese NL ein Erfassungs-Problem (>100%)?
-    // Wird zur Kennzeichnung in der NL-Tabelle UND am Karten-Marker genutzt.
+    // Hat diese NL nennenswert Umsatz ohne PLZ-Zuordnung? EINE Quelle für
+    // Karten-Marker UND NL-Tabelle.
+    // Vorher: Flag bei IST(inkl. 00000) / Hochrechnung(gültige PLZ) > 100,5 %.
+    // Das hing am Hochrechnungsfaktor: bei Faktor ≈ 1 (laufendes Jahr, voll
+    // erfasste Kanäle) löste schon ein kleiner 00000-Rest aus, bei großem
+    // Faktor fast nie. Jetzt direkt: Anteil des IST-Umsatzes unter 00000.
+    // NLs ohne eigene Erhebung (nur 00000) sind erwartbar → nie markiert.
     _isNLInvalid(nl) {
       const info = this.erhebungsInfo?.[nl];
-      return !!(info && info.pct_erfassung > 1.005);
+      return !!(info && !info.nurAggregat && info.anteil_ohne_plz > OHNE_PLZ_SCHWELLE);
+    }
+
+    // Aktualisiert nur die Warn-Badges der sichtbaren NL-Marker (z.B. nach
+    // Kategorie-Wechsel), ohne Marker neu aufzubauen.
+    _refreshNLWarnIcons() {
+      if (!this.allMarkers || !this.filteredGroup) return;
+      for (const marker of this.allMarkers) {
+        const nl = marker.options.plzs?.[0];
+        if (!nl || !this.filteredGroup.hasLayer(marker)) continue;
+        const isSelected = !this._selectedNLs?.size || this._selectedNLs.has(nl);
+        marker.setIcon(this.createMarkerIcon(nl, !isSelected, this._isNLInvalid(nl)));
+      }
     }
 
     updateMarkers() {
@@ -7314,6 +7336,9 @@
           nl, erhID: nlToErh[nl],
           jahresumsatz: j, erfasst_total: t, erfasst_valid: v,
           nurAggregat,
+          // Direkter Anteil des IST-Umsatzes ohne gültige PLZ (00000) — Basis
+          // für das Flag "Umsatz ohne PLZ-Zuordnung" (siehe _isNLInvalid).
+          anteil_ohne_plz: t > 0 ? (aggregat_ist[nl] || 0) / t : 0,
           pct_erfassung:   j > 0 ? t / j : 0,
           pct_valid:       t > 0 ? v / t : 0,
           pct_hochrechnung: j > 0 ? v / j : 0,
@@ -7411,7 +7436,8 @@
       // verdächtig erkennen kann. Aggregation bleibt unverändert.
       // Bei NLs ohne eigene Erhebung (nur 00000) ist "erfasst = Jahresumsatz"
       // erwartbar — die 100%+-Warnung gilt hier NICHT.
-      const erfassungInvalid = !info.nurAggregat && info.pct_erfassung > 1.005;
+      const erfassungInvalid = this._isNLInvalid(info.nl);
+      const ohnePlzPct = ((info.anteil_ohne_plz || 0) * 100).toFixed(1).replace('.', ',');
       const nlCell = info.nurAggregat
         ? { text: info.nl, cls: 'nl-nur-aggregat',
             html: `${escapeHtml(info.nl)} <span class="nl-aggregat-tag" title="Keine eigene Erhebung / keine Hochrechnung — der IST-Umsatz unter PLZ 00000 wird als Gesamt angerechnet.">∑ 00000</span>` }
@@ -7423,7 +7449,7 @@
           text: Math.round(info.erfasst_valid).toLocaleString('de-DE'),
           cls: erfassungInvalid ? 'nl-pct-invalid' : '',
           html: erfassungInvalid
-            ? `<span class="nl-pct-warn" title="Erfasster Umsatz übersteigt den Jahresumsatz dieser NL — vermutlich Umsatz ohne PLZ-Zuordnung. Datenqualität dieser NL prüfen.">⚠️</span>&nbsp;${escapeHtml(Math.round(info.erfasst_valid).toLocaleString('de-DE'))}`
+            ? `<span class="nl-pct-warn" title="${ohnePlzPct} % des erfassten Umsatzes dieser NL haben keine gültige PLZ (PLZ 00000). Datenqualität dieser NL prüfen.">⚠️</span>&nbsp;${escapeHtml(Math.round(info.erfasst_valid).toLocaleString('de-DE'))}`
             : null,
         },
         { text: (info.pct_hochrechnung * 100).toFixed(1) + '%', cls: '' },
@@ -8303,10 +8329,10 @@
       // Übersichts-Tabelle folgt dem Kategorie-Filter → neu aufbauen, wenn sie
       // gerade sichtbar ist (die Kategorie-Toggles liegen im Karten-Panel und
       // sind auch im Übersichts-Reiter erreichbar).
-      if (this._sidebarView === 'overview') {
-        this.prepareErhebungsInfo();
-        this.renderErhebungsInfoTable();
-      }
+      // Flags an den NL-Markern hängen ebenfalls daran → immer neu berechnen.
+      this.prepareErhebungsInfo();
+      this._refreshNLWarnIcons();
+      if (this._sidebarView === 'overview') this.renderErhebungsInfoTable();
       // Offene Popups aktualisiert _rerenderActivePopup() (wird direkt nach
       // _refreshAll in refreshMapAndPopup aufgerufen) — hier NICHT das
       // Übersichts-Popup aufreißen, sonst geht es bei jedem Button-Klick auf.
