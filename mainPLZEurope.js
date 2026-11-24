@@ -296,6 +296,20 @@
     const s = String(nr).trim();
     return s === '' || !/^\d+$/.test(s);
   };
+  // Ergebnis-/Summenzeile auf einem beliebigen Merkmal (BW "Ergebnis",
+  // SAC "@TotalMembers"). Achtung: "#" / leer = "nicht zugeordnet" ist eine
+  // ECHTE Detailzeile und KEIN Ergebnis.
+  const TOTAL_MEMBER_RE = /^(@TotalMembers|ergebnis|gesamtergebnis|result|overall result|summe|total)$/i;
+  const isTotalMember = (v) => v != null && TOTAL_MEMBER_RE.test(String(v).trim());
+
+  // Anzahl Kunden (BRECEIPTS) über HWG-Zeilen, falls BW KEINE Ergebniszeile
+  // über die HWGs mitliefert:
+  //   'sum' = jeder Bon ist genau einer HWG-Zeile zugeordnet (additiv)
+  //   'max' = ein Bon zählt in jeder HWG, die er enthält (überlappend) →
+  //           Maximum als Untergrenze
+  // Liefert BW die Ergebniszeile über HWG, wird IMMER deren Wert genommen
+  // (dort rechnet BW Bons korrekt, auch bei Überlappung).
+  const BONS_HWG_AGG = 'sum';
 
   // ── Streuplan-Fallback (analog Mitbewerber-Fallback) ─────────────────
   const STREUPLAN_FALLBACK = {"termine":[{"datum":"2026-01-31","kw":6,"beschreibung":"16-Seiter A4"},{"datum":"2026-02-28","kw":10,"beschreibung":"32-Seiter A4"},{"datum":"2026-03-28","kw":14,"beschreibung":"32-Seiter A4"},{"datum":"2026-04-11","kw":16,"beschreibung":"16-Seiter A4"},{"datum":"2026-05-02","kw":19,"beschreibung":"24-Seiter A4"},{"datum":"2026-05-16","kw":21,"beschreibung":"16-Seiter A4"},{"datum":"2026-05-30","kw":23,"beschreibung":"24-Seiter A4"},{"datum":"2026-07-18","kw":30,"beschreibung":"8-Seiter A4"},{"datum":"2026-08-29","kw":36,"beschreibung":"16-Seiter A4"},{"datum":"2026-09-12","kw":38,"beschreibung":"16-Seiter A4"},{"datum":"2026-10-02","kw":41,"beschreibung":"40-Seiter A4"},{"datum":"2026-10-30","kw":45,"beschreibung":"24-Seiter A4"},{"datum":"2026-11-28","kw":49,"beschreibung":"32-Seiter A4"}],"partner":[{"haupt_nl":"Kiel-Suchsdorf","haupt_nl_id":571,"partner_nls":[{"id":853,"name":"Kiel-Ravensberg"},{"id":634,"name":"Schwentinental-Raisdorf"}]},{"haupt_nl":"Lübeck","haupt_nl_id":639,"partner_nls":[{"id":534,"name":"Lübeck-St. Jürgen"},{"id":864,"name":"Lübeck-Moisling"}]},{"haupt_nl":"Bremen","haupt_nl_id":647,"partner_nls":[{"id":553,"name":"Stuhr-Groß-Mackenstedt"},{"id":863,"name":"Bremen-Osterholz (Weserpark)"}]},{"haupt_nl":"Dortmund","haupt_nl_id":573,"partner_nls":[{"id":509,"name":"Dortmund-Aplerbeck"}]},{"haupt_nl":"Bochum Harpen","haupt_nl_id":519,"partner_nls":[{"id":648,"name":"Bochum-Hofstede"}]},{"haupt_nl":"Wuppertal-Barmen (Lichtscheid)","haupt_nl_id":868,"partner_nls":[{"id":617,"name":"Wuppertal"}]},{"haupt_nl":"Krefeld-Mevissenstraße","haupt_nl_id":633,"partner_nls":[{"id":541,"name":"Krefeld-Untergath"}]},{"haupt_nl":"Aachen","haupt_nl_id":586,"partner_nls":[{"id":613,"name":"Würselen"}]},{"haupt_nl":"Hamburg-Bergedorf","haupt_nl_id":620,"partner_nls":[{"id":619,"name":"Hamburg-Harburg"},{"id":851,"name":"Hamburg-Wandsbek"},{"id":595,"name":"Hamburg-Moorfleet"},{"id":663,"name":"Hamburg-Bramfeld"},{"id":858,"name":"Hamburg-Langenhorn"},{"id":664,"name":"Hamburg-Stellingen"},{"id":654,"name":"Hamburg-Lokstedt"},{"id":865,"name":"Hamburg-Lurup"},{"id":624,"name":"Barsbüttel"}]},{"haupt_nl":"Berlin-Charlottenburg","haupt_nl_id":812,"partner_nls":[{"id":643,"name":"Berlin-Kurfürstendamm"},{"id":840,"name":"Berlin Am Wittenbergplatz"},{"id":814,"name":"Berlin Am Hermannplatz"},{"id":597,"name":"Berlin-Schöneberg"},{"id":894,"name":"Berlin-Steglitz"},{"id":604,"name":"Berlin-Marienfelde"},{"id":866,"name":"Berlin-Treptow"},{"id":578,"name":"Berlin-Pankow"},{"id":656,"name":"Berlin-Wedding"},{"id":850,"name":"Berlin-Wittenau"},{"id":596,"name":"Berlin-Spandau Brunsbütteler Damm"},{"id":623,"name":"Berlin-Spandau"}]},{"haupt_nl":"Wildau","haupt_nl_id":605,"partner_nls":[{"id":565,"name":"Mahlow"},{"id":577,"name":"Birkenwerder"}]},{"haupt_nl":"Karlsruhe-Oststadt","haupt_nl_id":852,"partner_nls":[{"id":330,"name":"Karlsruhe-Südstadt"},{"id":525,"name":"Karlsruhe-Mühlburg"}]},{"haupt_nl":"Stuttgart","haupt_nl_id":871,"partner_nls":[{"id":631,"name":"Stuttgart-Untertürkheim"},{"id":626,"name":"Stuttgart-Möhringen"}]},{"haupt_nl":"Augsburg-Oberhausen","haupt_nl_id":862,"partner_nls":[{"id":515,"name":"Augsburg"},{"id":632,"name":"Augsburg-Lechhausen"},{"id":548,"name":"Gersthofen"}]},{"haupt_nl":"Kassel","haupt_nl_id":658,"partner_nls":[{"id":603,"name":"Fuldabrück"}]},{"haupt_nl":"Mainz-Mombach","haupt_nl_id":854,"partner_nls":[{"id":614,"name":"Mainz"}]},{"haupt_nl":"Mannheim","haupt_nl_id":655,"partner_nls":[{"id":583,"name":"Mannheim-Mallau"},{"id":557,"name":"Mannheim-Waldhof"},{"id":897,"name":"Mannheim-Columbus"}]},{"haupt_nl":"Dillingen","haupt_nl_id":585,"partner_nls":[{"id":622,"name":"Ensdorf"}]},{"haupt_nl":"Essen-Frillendorf","haupt_nl_id":539,"partner_nls":[{"id":505,"name":"Essen-Frohnhausen"}]},{"haupt_nl":"München","haupt_nl_id":520,"partner_nls":[{"id":870,"name":"München-Freimann"}]},{"haupt_nl":"Braunschweig","haupt_nl_id":607,"partner_nls":[{"id":630,"name":"Braunschweig-Stöckheim"}]}]};
@@ -3501,10 +3515,37 @@
     //
     // Argument akzeptiert sowohl einen einzelnen String (Backwards-Compat)
     // als auch ein Array von ErhIDs.
+    // Schlüssel einer (Erhebung, PLZ, NL, Umsatzherkunft)-Gruppe auf Rohwerten
+    // der Zeile — verbindet HWG-Detailzeilen mit ihrer HWG-Ergebniszeile.
+    _bonGroupKey(row) {
+      return [
+        row['dimension_erhebung_0']?.id?.trim(), row['dimension_jahr_0']?.id?.trim(),
+        row['dimension_erhebungsnummer_0']?.id?.trim(), String(row['dimension_plz_0']?.id ?? '').trim(),
+        row['dimension_niederlassung_0']?.id?.trim(), row['dimension_plz_quelle_0']?.id?.trim(),
+      ].join('|');
+    }
+
+    // true = Ergebniszeile (über HWG oder Umsatzherkunft) → NICHT indexieren,
+    // sonst würde ihr Umsatz zusätzlich zu den Detailzeilen gezählt. Die Bons
+    // einer HWG-Ergebniszeile werden aber gemerkt: BW rechnet dort die
+    // Kundenzahl korrekt (ein Bon mit mehreren HWGs zählt einmal).
+    _isTotalRowAndRecord(row) {
+      const hwgRaw = row['dimension_hwg_0']?.id;
+      const qRaw   = row['dimension_plz_quelle_0']?.id;
+      if (isTotalMember(qRaw)) return true;
+      if (isTotalMember(hwgRaw)) {
+        const bons = Number(row['value_kd_erhebung_0']?.raw);
+        if (Number.isFinite(bons)) (this._hwgTotalBons ||= new Map()).set(this._bonGroupKey(row), bons);
+        return true;
+      }
+      return false;
+    }
+
     _buildErhebungIndex(activeErhIDs) {
       const data = this._myDataSource?.data;
       if (!Array.isArray(data)) { this._erhebungIndex = {}; return; }
       const idx = {};
+      this._hwgTotalBons = new Map();
       // Aktive ErhIDs normalisieren in ein Set für O(1)-Lookups.
       let activeSet = null;
       if (Array.isArray(activeErhIDs)) {
@@ -3527,6 +3568,7 @@
         if (hasActiveFilter && !activeSet.has(eID)) {
           if (row['dimension_hzflag_0']?.id?.trim() !== 'X') continue;
         }
+        if (this._isTotalRowAndRecord(row)) continue;   // Ergebniszeilen raus
         const key = eID + '|' + yr + '|' + nr;
         (idx[key] ||= []).push(row);
       }
@@ -3879,6 +3921,7 @@
         if (isNull(eID) || isNull(yr) || isNull(nr)) continue;
         if (isAggregateNummer(nr)) continue;   // "Ergebnis"-Aggregat nie indexieren
         if (this._erhebungLand[eID] === undefined) this._erhebungLand[eID] = this._landOfRow(row);
+        if (this._isTotalRowAndRecord(row)) continue;   // Ergebniszeilen raus
         const k = eID + '|' + yr + '|' + nr;
         (idx[k] ||= []).push(row);
       }
@@ -7761,7 +7804,8 @@
             umsatzErhebung: 0, kdErhebung: 0, auflage: 0,
             werbeverweigerer: 0, kaufkraftIdx: 0,
             kdByCat: {}, istByCat: {},
-            _seenKd: new Set(),   // (NL|Kategorie) — Bon/Auflage-Dedup gegen HWG
+            _kdAcc: new Map(),    // Gruppe (Erh,PLZ,NL,Kategorie) → Bons über HWG-Zeilen
+            _auflByNL: new Map(), // NL → Auflage (je NL einmal)
             umsatzByHwg: {},      // HWG → Umsatz (für Popup-Aufschlüsselung)
           };
         }
@@ -7773,6 +7817,12 @@
         v.werbeverweigerer   = Math.max(v.werbeverweigerer, safe(row['value_werbeverweigerer_0']?.raw));
         const kk = safe(row['value_kaufkraft_0']?.raw);
         if (kk > 0) v._kkValues.push(kk);
+        // Auflage hängt weder an Umsatzherkunft noch an HWG, steht also auf
+        // jeder Zeile einer (PLZ, NL) gleich → je NL einmal (Max), dann über
+        // die NLs summieren (Doppelbestreuung = zwei Prospekte).
+        const aufl = safe(row['value_auflage_0']?.raw);
+        const nlA = nl || '';
+        if (aufl > (v._auflByNL.get(nlA) || 0)) v._auflByNL.set(nlA, aufl);
 
         const cat  = mapUmsatzQuelle(row['dimension_plz_quelle_0']?.id);
         if (!cat) continue; // unbekannte/aggregierte Herkunft → nicht einbuchen
@@ -7780,23 +7830,22 @@
         const hwg  = mapHwg(row['dimension_hwg_0']?.id);
         const bons = safe(row['value_kd_erhebung_0']?.raw);
         const ist  = safe(row['value_ums_erhebung_0']?.raw);
-        const aufl = safe(row['value_auflage_0']?.raw);
 
         // Ist-Umsatz ist je HWG aufgeteilt → additiv über alle HWG-Zeilen
         // (Zähler für den Ø-Bon; unabhängig vom HWG-Filter).
         v.istByCat[cat] = (v.istByCat[cat] || 0) + ist;
         v.umsatzErhebung += ist;
-        // Bons + Auflage: je (NL,Kategorie) nur EINMAL zählen — HWG-Zeilen
-        // wiederholen dieselbe Bon-/Auflagenzahl (ein Bon umfasst mehrere HWGs).
-        // Ohne HWG in der Query ist das genau eine Zeile je (NL,Kategorie) →
-        // verhält sich identisch zu vorher.
-        const dk = nlId + '|' + cat;
-        if (!v._seenKd.has(dk)) {
-          v._seenKd.add(dk);
-          v.kdByCat[cat] = (v.kdByCat[cat] || 0) + bons;
-          v.kdErhebung  += bons;
-          v.auflage     += aufl;
-        }
+        // Kunden (Bons): je Gruppe (Erhebung, PLZ, NL, Kategorie) über ALLE
+        // HWG-Zeilen sammeln — der Endwert entsteht nach der Schleife:
+        // BW-Ergebniszeile über HWG (falls geliefert) > sonst sum/max
+        // (BONS_HWG_AGG). Vorher zählte nur die ERSTE HWG-Zeile → viel zu
+        // wenige Kunden und ein absurd hoher Ø-Bon. Ohne HWG in der Query gibt
+        // es genau eine Zeile je Gruppe → identisch zu vorher.
+        const gk = this._bonGroupKey(row);
+        let acc = v._kdAcc.get(gk);
+        if (!acc) { acc = { cat, sum: 0, max: 0 }; v._kdAcc.set(gk, acc); }
+        acc.sum += bons;
+        if (bons > acc.max) acc.max = bons;
 
         const uGes = safe(row[F_GES]?.raw);
         const uWrb = safe(row[F_WRB]?.raw);
@@ -7822,6 +7871,15 @@
         v.haushalte      = v._hhValues.length > 0 ? v._hhValues.reduce((a, b) => a + b, 0) / v._hhValues.length : 0;
         v.kaufkraftIndex = v._kkValues.length > 0 ? v._kkValues.reduce((a, b) => a + b, 0) / v._kkValues.length : 0;
         delete v._hhValues; delete v._kkValues;
+        // Kunden je Gruppe finalisieren und auf Kategorie/Gesamt verbuchen.
+        for (const [gk, acc] of v._kdAcc) {
+          const tot = this._hwgTotalBons?.get(gk);
+          const kd  = Number.isFinite(tot) ? tot : (BONS_HWG_AGG === 'max' ? acc.max : acc.sum);
+          v.kdByCat[acc.cat] = (v.kdByCat[acc.cat] || 0) + kd;
+          v.kdErhebung += kd;
+        }
+        for (const a of v._auflByNL.values()) v.auflage += a;
+        delete v._kdAcc; delete v._auflByNL;
         // Domain-Frage 3 (geklärt): Negative Umsätze (Stornos im Saldo) werden
         // zu 0 normalisiert. Konsistent zu computeWKKennwerte.
         const clamp = x => x > 0 ? x : 0;
